@@ -1,4 +1,4 @@
-import { Download, Printer, RotateCcw, Save, X } from 'lucide-react';
+import { Printer, RotateCcw, Save, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { ResumeProfile } from '../types/resume';
 
@@ -11,6 +11,31 @@ interface FullResumeModalProps {
   onResetProfile: () => void;
 }
 
+type RoleFocus = 'unified' | 'sre' | 'devops' | 'devsecops';
+
+const FOCUS_HEADLINES: Record<RoleFocus, { label: string; headline: string }> =
+  {
+    unified: {
+      label: 'All-in-One',
+      headline: '',
+    },
+    sre: {
+      label: 'SRE / Platform',
+      headline:
+        'SRE / Platform Engineer · Kubernetes, Observability, Secrets Management & Incident Response',
+    },
+    devops: {
+      label: 'DevOps & IaC',
+      headline:
+        'DevOps Engineer · CI/CD, Kubernetes, Terraform, Observability & Linux',
+    },
+    devsecops: {
+      label: 'DevSecOps',
+      headline:
+        'DevOps & DevSecOps Engineer · Kubernetes, GitLab CI, Vault, Gitleaks & DefectDojo',
+    },
+  };
+
 export function FullResumeModal({
   open,
   initialTab,
@@ -20,6 +45,7 @@ export function FullResumeModal({
   onResetProfile,
 }: FullResumeModalProps) {
   const [tab, setTab] = useState<'view' | 'edit'>(initialTab);
+  const [focus, setFocus] = useState<RoleFocus>('unified');
   const [draft, setDraft] = useState<ResumeProfile>(profile);
   const [savedNotice, setSavedNotice] = useState(false);
 
@@ -113,13 +139,40 @@ export function FullResumeModal({
         <div className="flex-1 overflow-y-auto dossier-scroll p-6 md:p-10 print-only-sheet">
           {tab === 'view' ? (
             <div className="max-w-3xl mx-auto space-y-8">
+              {/* Role Focus Filter (hidden when printing) */}
+              <div className="no-print flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-white/10">
+                <span className="text-xs text-slate-400">
+                  Role Focus View
+                </span>
+                <div
+                  role="group"
+                  aria-label="Role focus view"
+                  className="flex flex-wrap items-center gap-1 p-1 rounded-lg bg-black/35 border border-white/10"
+                >
+                  {(Object.keys(FOCUS_HEADLINES) as RoleFocus[]).map((key) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setFocus(key)}
+                      className={`px-2.5 py-1 text-xs rounded-md transition-colors cursor-pointer whitespace-nowrap ${
+                        focus === key
+                          ? 'bg-amber-400 text-slate-950 font-semibold'
+                          : 'text-slate-300 hover:text-white'
+                      }`}
+                    >
+                      {FOCUS_HEADLINES[key].label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Header */}
               <header className="pb-6 border-b border-white/15 print:border-slate-300">
                 <h1 className="font-display text-3xl font-bold tracking-tight text-white print:text-slate-900">
                   {profile.name}
                 </h1>
                 <p className="text-base font-medium text-amber-400 print:text-slate-700 mt-1">
-                  {profile.headline}
+                  {FOCUS_HEADLINES[focus].headline || profile.headline}
                 </p>
                 <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-slate-400 print:text-slate-600 mt-3 font-mono-tabular">
                   <span>{profile.email}</span>
@@ -138,38 +191,6 @@ export function FullResumeModal({
                   {profile.bio}
                 </p>
               </header>
-
-              {/* Original Uploaded PDF Editions */}
-              {profile.pdfAttachments.length > 0 && (
-                <section className="no-print space-y-3">
-                  <h2 className="font-display text-sm font-semibold tracking-wide text-slate-200">
-                    Original Tailored PDF Resumes
-                  </h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {profile.pdfAttachments.map((pdf) => (
-                      <a
-                        key={pdf.id}
-                        href={pdf.url}
-                        download
-                        className="flex items-center justify-between gap-3 p-3 rounded-lg border border-white/10 bg-white/[0.03] hover:border-amber-400/70 transition-colors"
-                      >
-                        <div className="min-w-0">
-                          <div className="text-xs font-semibold text-white truncate">
-                            {pdf.label}
-                          </div>
-                          <div className="text-[11px] text-slate-400 truncate mt-0.5">
-                            {pdf.focus}
-                          </div>
-                        </div>
-                        <Download
-                          className="w-4 h-4 text-amber-400 shrink-0"
-                          aria-hidden="true"
-                        />
-                      </a>
-                    ))}
-                  </div>
-                </section>
-              )}
 
               {/* Experience */}
               <section className="space-y-4">
@@ -404,13 +425,31 @@ export function FullResumeModal({
                 </label>
                 <label className="space-y-1.5 text-xs">
                   <span className="text-slate-300 font-medium">
-                    Website / GitHub
+                    Phone (clear to hide publicly)
                   </span>
                   <input
                     type="text"
-                    value={draft.website}
+                    value={draft.phone}
                     onChange={(e) =>
-                      setDraft({ ...draft, website: e.target.value })
+                      setDraft({ ...draft, phone: e.target.value })
+                    }
+                    placeholder="Optional"
+                    className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/15 text-sm text-white focus:outline-none focus:border-amber-400"
+                  />
+                </label>
+                <label className="space-y-1.5 text-xs">
+                  <span className="text-slate-300 font-medium">
+                    LinkedIn / Website
+                  </span>
+                  <input
+                    type="text"
+                    value={draft.linkedin}
+                    onChange={(e) =>
+                      setDraft({
+                        ...draft,
+                        linkedin: e.target.value,
+                        website: e.target.value,
+                      })
                     }
                     className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/15 text-sm text-white focus:outline-none focus:border-amber-400"
                   />

@@ -162,32 +162,6 @@ export const DEFAULT_RESUME: ResumeProfile = {
     'Problem-solving',
   ],
   interests: ['Photography', 'Trekking', 'Music', 'Cooking'],
-  pdfAttachments: [
-    {
-      id: 'pdf-sre',
-      label: 'SRE / Platform Engineer Resume',
-      focus: 'Kubernetes · Observability · Secrets · Incident Response',
-      url: `${import.meta.env.BASE_URL}assets/aistudio/Rohit_Kumar_Samad_SRE_Resume_a51251fa.pdf`,
-    },
-    {
-      id: 'pdf-devops',
-      label: 'DevOps Engineer Resume',
-      focus: 'CI/CD · Kubernetes · Terraform · Linux',
-      url: `${import.meta.env.BASE_URL}assets/aistudio/ROHIT_KUMAR_SAMAD_fullstack_544ea4b5.pdf`,
-    },
-    {
-      id: 'pdf-deloitte',
-      label: 'DevOps & Platform (Deloitte Edition)',
-      focus: 'Observability · Hybrid Cloud · DevSecOps',
-      url: `${import.meta.env.BASE_URL}assets/aistudio/ROHIT_KUMAR_SAMAD_Deloitte_b1e3a9d4.pdf`,
-    },
-    {
-      id: 'pdf-npci',
-      label: 'DevOps & DevSecOps (NPCI Edition)',
-      focus: 'Kubernetes · CI/CD · Linux · Vault & Security',
-      url: `${import.meta.env.BASE_URL}assets/aistudio/ROHIT_KUMAR_SAMAD_NPCI_d36ef73d.pdf`,
-    },
-  ],
 };
 
 const STORAGE_KEY = 'rohit_samad_3d_portfolio_v2';

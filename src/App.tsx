@@ -4,6 +4,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { AmbientAudioEngine } from './audio/AmbientAudioEngine';
 import { ControlDock } from './components/ControlDock';
 import { ExhibitDossierDrawer } from './components/ExhibitDossierDrawer';
 import { FullResumeModal } from './components/FullResumeModal';
@@ -32,6 +33,7 @@ const EXHIBIT_MARKERS: { id: ChapterId; num: string; label: string }[] = [
 export default function App() {
   const canvasMountRef = useRef<HTMLDivElement | null>(null);
   const sceneManagerRef = useRef<ResumeSceneManager | null>(null);
+  const audioEngineRef = useRef<AmbientAudioEngine | null>(null);
   const markerRefs = useRef<Partial<Record<ChapterId, HTMLButtonElement | null>>>({});
 
   const [profile, setProfile] = useState<ResumeProfile>(() =>
@@ -49,6 +51,7 @@ export default function App() {
   const [explode, setExplode] = useState(0);
   const [finish, setFinish] = useState<MaterialFinish>('titanium');
   const [autoRotate, setAutoRotate] = useState(false);
+  const [audioEnabled, setAudioEnabled] = useState(false);
   const [contextLost, setContextLost] = useState(false);
   const [webglError, setWebglError] = useState<string | null>(null);
 
@@ -80,13 +83,22 @@ export default function App() {
       );
     }
 
+    const engine = new AmbientAudioEngine();
+    audioEngineRef.current = engine;
+
     return () => {
       sceneManagerRef.current = null;
       manager?.dispose();
+      audioEngineRef.current = null;
+      engine.dispose();
     };
     // Mount scene once; profile updates flow through manager.updateResumeProfile
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [handleSelectExhibitFromCanvas]);
+
+  useEffect(() => {
+    audioEngineRef.current?.setChapter(activeChapter);
+  }, [activeChapter]);
 
   const navigateToChapter = useCallback(
     (chapter: ChapterId, openDossier = true) => {
@@ -126,6 +138,14 @@ export default function App() {
     });
   }, []);
 
+  const handleToggleAudio = useCallback(() => {
+    setAudioEnabled((prev) => {
+      const next = !prev;
+      void audioEngineRef.current?.setEnabled(next);
+      return next;
+    });
+  }, []);
+
   const handleSaveProfile = useCallback((nextProfile: ResumeProfile) => {
     setProfile(nextProfile);
     saveResumeProfile(nextProfile);
@@ -154,6 +174,8 @@ export default function App() {
 
       if (e.key === 'h' || e.key === 'H') {
         setControlsCollapsed((prev) => !prev);
+      } else if (e.key === 'm' || e.key === 'M') {
+        handleToggleAudio();
       } else if (e.key === '0') {
         handleSelectView('gallery');
       } else if (e.key === '1') {
@@ -170,7 +192,7 @@ export default function App() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [modalState.open, handleSelectView, navigateToChapter]);
+  }, [modalState.open, handleSelectView, navigateToChapter, handleToggleAudio]);
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-[#0b0e14] select-none">
@@ -268,6 +290,7 @@ export default function App() {
         explode={explode}
         finish={finish}
         autoRotate={autoRotate}
+        audioEnabled={audioEnabled}
         onSelectView={handleSelectView}
         onOpenDossier={(ch) => {
           setActiveChapter(ch);
@@ -277,6 +300,7 @@ export default function App() {
         onChangeExplode={handleChangeExplode}
         onChangeFinish={handleChangeFinish}
         onToggleAutoRotate={handleToggleAutoRotate}
+        onToggleAudio={handleToggleAudio}
       />
 
       {/* Full Printable Resume & Live Customizer Modal */}

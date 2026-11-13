@@ -3,7 +3,6 @@ import {
   ArrowRight,
   Check,
   Copy,
-  Download,
   ExternalLink,
   X,
 } from 'lucide-react';
@@ -343,37 +342,6 @@ export function ExhibitDossierDrawer({
                     </li>
                   ))}
                 </ul>
-              </section>
-            )}
-
-            {profile.pdfAttachments.length > 0 && (
-              <section className="pt-4 border-t border-white/10 space-y-2.5">
-                <h4 className="font-display text-sm font-semibold text-slate-200">
-                  Download Resume Editions (PDF)
-                </h4>
-                <div className="space-y-2">
-                  {profile.pdfAttachments.map((pdf) => (
-                    <a
-                      key={pdf.id}
-                      href={pdf.url}
-                      download
-                      className="flex items-center justify-between gap-3 p-2.5 rounded-lg border border-white/10 bg-white/[0.03] hover:border-amber-400/60 transition-colors"
-                    >
-                      <div className="min-w-0">
-                        <div className="text-xs font-medium text-white truncate">
-                          {pdf.label}
-                        </div>
-                        <div className="text-[11px] text-slate-400 truncate">
-                          {pdf.focus}
-                        </div>
-                      </div>
-                      <Download
-                        className="w-3.5 h-3.5 text-amber-400 shrink-0"
-                        aria-hidden="true"
-                      />
-                    </a>
-                  ))}
-                </div>
               </section>
             )}
 

@@ -47,13 +47,6 @@ export interface EducationItem {
   honors: string;
 }
 
-export interface ResumePdfAsset {
-  id: string;
-  label: string;
-  focus: string;
-  url: string;
-}
-
 export interface ResumeProfile {
   name: string;
   headline: string;
@@ -78,5 +71,4 @@ export interface ResumeProfile {
   languages: string[];
   softSkills: string[];
   interests: string[];
-  pdfAttachments: ResumePdfAsset[];
 }

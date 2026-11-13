@@ -4,6 +4,8 @@ import {
   Eye,
   Pencil,
   RotateCw,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 import {
   CameraViewId,
@@ -21,12 +23,14 @@ interface ControlDockProps {
   explode: number;
   finish: MaterialFinish;
   autoRotate: boolean;
+  audioEnabled: boolean;
   onSelectView: (view: CameraViewId) => void;
   onOpenDossier: (chapter: ChapterId) => void;
   onOpenEditor: () => void;
   onChangeExplode: (value: number) => void;
   onChangeFinish: (finish: MaterialFinish) => void;
   onToggleAutoRotate: () => void;
+  onToggleAudio: () => void;
 }
 
 const CAMERA_PRESETS: { id: CameraViewId; shortLabel: string; label: string }[] =
@@ -82,7 +86,7 @@ function getChapterCaption(
     }
     case 'credentials':
       return {
-        title: '05. Education, Workshops & Resumes',
+        title: '05. Education, Workshops & Contact',
         subtitle: `${profile.education[0]?.institution ?? 'Education'} · ${profile.email}`,
       };
   }
@@ -97,12 +101,14 @@ export function ControlDock({
   explode,
   finish,
   autoRotate,
+  audioEnabled,
   onSelectView,
   onOpenDossier,
   onOpenEditor,
   onChangeExplode,
   onChangeFinish,
   onToggleAutoRotate,
+  onToggleAudio,
 }: ControlDockProps) {
   const caption = getChapterCaption(activeChapter, profile);
 
@@ -266,6 +272,31 @@ export function ControlDock({
             >
               <RotateCw className="w-3.5 h-3.5" aria-hidden="true" />
               <span>Orbit</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onToggleAudio}
+              aria-pressed={audioEnabled}
+              aria-label={audioEnabled ? 'Mute ambient audio' : 'Unmute ambient audio'}
+              title="Toggle ambient audio (M)"
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border transition-colors whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-amber-400 ${
+                audioEnabled
+                  ? 'border-amber-400/80 bg-amber-400/15 text-amber-300'
+                  : 'border-white/10 text-slate-300 hover:text-white'
+              }`}
+            >
+              {audioEnabled ? (
+                <>
+                  <Volume2 className="w-3.5 h-3.5" aria-hidden="true" />
+                  <span>Sound</span>
+                </>
+              ) : (
+                <>
+                  <VolumeX className="w-3.5 h-3.5" aria-hidden="true" />
+                  <span>Muted</span>
+                </>
+              )}
             </button>
           </div>
         </div>
