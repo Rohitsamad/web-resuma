@@ -1,0 +1,6 @@
+{
+  "name": "Atelier Resume — Interactive 3D Portfolio",
+  "description": "An interactive Three.js architectural resume and career exhibition with procedural 3D exhibits, damped camera choreography, and customizable dossier.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
