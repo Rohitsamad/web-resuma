@@ -1,34 +1,32 @@
-import { CameraViewId, ChapterId } from '../types/resume';
+import { ChapterId } from '../types/resume';
 
 interface TopNavBarProps {
   candidateName: string;
   activeChapter: ChapterId;
-  activeView: CameraViewId;
-  onNavigateChapter: (chapter: ChapterId, openDossier?: boolean) => void;
+  onScrollToSection: (chapter: ChapterId) => void;
   onOpenFullResume: () => void;
 }
 
 const NAV_ITEMS: { id: ChapterId; label: string }[] = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'experience', label: 'Experience' },
-  { id: 'projects', label: 'Systems' },
-  { id: 'skills', label: 'Skills' },
-  { id: 'credentials', label: 'Credentials' },
+  { id: 'cloud', label: 'Cloud & K8s' },
+  { id: 'cicd', label: 'CI/CD' },
+  { id: 'observability', label: 'Observability' },
+  { id: 'security', label: 'Security' },
+  { id: 'career', label: 'Career' },
 ];
 
 export function TopNavBar({
   candidateName,
   activeChapter,
-  activeView,
-  onNavigateChapter,
+  onScrollToSection,
   onOpenFullResume,
 }: TopNavBarProps) {
   return (
-    <header className="no-print fixed top-0 left-0 right-0 z-20 h-14 px-5 md:px-8 flex items-center justify-between gap-8 bg-[#0b0e14]/92 border-b border-white/10">
+    <header className="no-print fixed top-0 left-0 right-0 z-30 h-14 px-5 md:px-8 flex items-center justify-between gap-8 bg-[#0b0e14]/94 border-b border-white/10">
       {/* Zone 1: Single text element wordmark */}
       <button
         type="button"
-        onClick={() => onNavigateChapter('overview', false)}
+        onClick={() => onScrollToSection('overview')}
         className="font-display text-lg font-semibold tracking-tight text-slate-100 hover:text-amber-400 transition-colors whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-amber-400 focus-visible:outline-offset-4 rounded"
       >
         {candidateName}
@@ -36,17 +34,16 @@ export function TopNavBar({
 
       {/* Zone 2: 5 concise single-line text links */}
       <nav
-        aria-label="Resume Sections"
+        aria-label="Core Skills Sections"
         className="hidden md:flex items-center gap-6"
       >
         {NAV_ITEMS.map((item) => {
-          const isActive =
-            activeView !== 'gallery' && activeChapter === item.id;
+          const isActive = activeChapter === item.id;
           return (
             <button
               key={item.id}
               type="button"
-              onClick={() => onNavigateChapter(item.id, true)}
+              onClick={() => onScrollToSection(item.id)}
               className={`relative py-1.5 text-sm font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-amber-400 focus-visible:outline-offset-4 rounded ${
                 isActive
                   ? 'text-amber-400'

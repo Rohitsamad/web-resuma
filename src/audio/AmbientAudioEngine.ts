@@ -16,33 +16,40 @@ const CHAPTER_PROFILES: Record<ChapterId, ChapterSoundProfile> = {
     lfoDepth: 85,
     chimeFreq: 587.33, // D5
   },
-  experience: {
-    freqs: [65.41, 98.0, 146.83, 293.66], // C2 - G2 - D3 - D4 (steady chronological fifths)
-    filterCutoff: 470,
-    lfoRate: 0.22,
-    lfoDepth: 110,
-    chimeFreq: 523.25, // C5
-  },
-  projects: {
-    freqs: [92.5, 138.59, 220.0, 329.63], // F#2 - C#3 - A3 - E4 (crisp systems resonance)
-    filterCutoff: 610,
-    lfoRate: 0.16,
-    lfoDepth: 140,
-    chimeFreq: 659.25, // E5
-  },
-  skills: {
-    freqs: [55.0, 82.41, 123.47, 277.18], // A1 - E2 - B2 - C#4 (orbital harmonic shimmer)
-    filterCutoff: 530,
+  cloud: {
+    freqs: [55.0, 82.41, 123.47, 277.18], // A1 - E2 - B2 - C#4 (expansive cloud orbital chord)
+    filterCutoff: 510,
     lfoRate: 0.12,
-    lfoDepth: 130,
+    lfoDepth: 120,
     chimeFreq: 554.37, // C#5
   },
-  credentials: {
-    freqs: [49.0, 73.42, 123.47, 185.0], // G1 - D2 - B2 - F#3 (grounded resolving chord)
-    filterCutoff: 380,
-    lfoRate: 0.07,
-    lfoDepth: 70,
+  cicd: {
+    freqs: [92.5, 138.59, 220.0, 329.63], // F#2 - C#3 - A3 - E4 (rhythmic DevSecOps shimmer)
+    filterCutoff: 620,
+    lfoRate: 0.2,
+    lfoDepth: 145,
+    chimeFreq: 659.25, // E5
+  },
+  observability: {
+    freqs: [65.41, 98.0, 146.83, 293.66], // C2 - G2 - D3 - D4 (steady telemetry fifths)
+    filterCutoff: 490,
+    lfoRate: 0.16,
+    lfoDepth: 115,
+    chimeFreq: 523.25, // C5
+  },
+  security: {
+    freqs: [61.74, 92.5, 146.83, 246.94], // B1 - F#2 - D3 - B3 (vault resonance)
+    filterCutoff: 390,
+    lfoRate: 0.09,
+    lfoDepth: 80,
     chimeFreq: 493.88, // B4
+  },
+  career: {
+    freqs: [49.0, 73.42, 123.47, 185.0], // G1 - D2 - B2 - F#3 (grounded resolving chord)
+    filterCutoff: 400,
+    lfoRate: 0.07,
+    lfoDepth: 75,
+    chimeFreq: 587.33, // D5
   },
 };
 

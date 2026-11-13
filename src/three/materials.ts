@@ -15,6 +15,7 @@ export interface StudioMaterialLibrary {
   nameplateMat: THREE.MeshStandardMaterial;
   displayPrimaryMat: THREE.MeshStandardMaterial;
   displaySecondaryMat: THREE.MeshStandardMaterial;
+  pipelineDisplayMat: THREE.MeshStandardMaterial;
   folioCoverMat: THREE.MeshStandardMaterial;
   instancedOrbitalMat: THREE.MeshStandardMaterial;
   instancedBollardMat: THREE.MeshStandardMaterial;
@@ -62,7 +63,6 @@ export function createStudioMaterials(
 ): StudioMaterialLibrary {
   const initial = FINISH_PALETTES.titanium;
 
-  // Matte architectural stone/slate (roughness 0.78 contrasts strongly with metals)
   const plinthStone = new THREE.MeshStandardMaterial({
     color: initial.stoneColor,
     roughness: 0.8,
@@ -71,7 +71,6 @@ export function createStudioMaterials(
     bumpScale: 0.015,
   });
 
-  // Anisotropic brushed metal chassis
   const brushedChassis = new THREE.MeshPhysicalMaterial({
     color: initial.chassisColor,
     metalness: 0.92,
@@ -83,7 +82,6 @@ export function createStudioMaterials(
     clearcoatRoughness: 0.25,
   });
 
-  // Warm precision brass / copper / cyan accent metal
   const accentBrass = new THREE.MeshPhysicalMaterial({
     color: initial.accentColor,
     metalness: 0.94,
@@ -93,14 +91,12 @@ export function createStudioMaterials(
     clearcoat: 0.35,
   });
 
-  // Dark matte-satin anodized trim (roughness 0.56 vs metal 0.20)
   const darkAnodized = new THREE.MeshStandardMaterial({
     color: 0x181d26,
     metalness: 0.42,
     roughness: 0.56,
   });
 
-  // Optical glass with graceful software-WebGL fallback
   const opticalGlass = new THREE.MeshPhysicalMaterial({
     color: 0xdbeafe,
     metalness: 0.0,
@@ -128,7 +124,7 @@ export function createStudioMaterials(
   const coolEmissive = new THREE.MeshStandardMaterial({
     color: 0x38bdf8,
     emissive: 0x38bdf8,
-    emissiveIntensity: 1.1,
+    emissiveIntensity: 1.15,
     roughness: 0.35,
     metalness: 0.1,
   });
@@ -172,6 +168,15 @@ export function createStudioMaterials(
     metalness: 0.05,
   });
 
+  const pipelineDisplayMat = new THREE.MeshStandardMaterial({
+    map: textures.pipelineDisplayAlbedo,
+    emissiveMap: textures.pipelineDisplayAlbedo,
+    emissive: new THREE.Color(0xffffff),
+    emissiveIntensity: 0.55,
+    roughness: 0.22,
+    metalness: 0.05,
+  });
+
   const folioCoverMat = new THREE.MeshStandardMaterial({
     map: textures.folioCoverAlbedo,
     roughness: 0.62,
@@ -207,6 +212,7 @@ export function createStudioMaterials(
     nameplateMat,
     displayPrimaryMat,
     displaySecondaryMat,
+    pipelineDisplayMat,
     folioCoverMat,
     instancedOrbitalMat,
     instancedBollardMat,
@@ -226,6 +232,7 @@ export function createStudioMaterials(
     nameplateMat,
     displayPrimaryMat,
     displaySecondaryMat,
+    pipelineDisplayMat,
     folioCoverMat,
     instancedOrbitalMat,
     instancedBollardMat,

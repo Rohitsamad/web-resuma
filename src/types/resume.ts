@@ -1,11 +1,12 @@
 export type ChapterId =
   | 'overview'
-  | 'experience'
-  | 'projects'
-  | 'skills'
-  | 'credentials';
+  | 'cloud'
+  | 'cicd'
+  | 'observability'
+  | 'security'
+  | 'career';
 
-export type CameraViewId = 'gallery' | ChapterId;
+export type CameraViewId = ChapterId;
 
 export type MaterialFinish = 'titanium' | 'brass' | 'obsidian';
 

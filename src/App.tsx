@@ -5,9 +5,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AmbientAudioEngine } from './audio/AmbientAudioEngine';
-import { ControlDock } from './components/ControlDock';
-import { ExhibitDossierDrawer } from './components/ExhibitDossierDrawer';
 import { FullResumeModal } from './components/FullResumeModal';
+import { SkillScrollSections } from './components/SkillScrollSections';
 import { TopNavBar } from './components/TopNavBar';
 import {
   clearSavedResumeProfile,
@@ -15,50 +14,51 @@ import {
   saveResumeProfile,
 } from './data/defaultResume';
 import { ResumeSceneManager } from './three/ResumeSceneManager';
-import {
-  CameraViewId,
-  ChapterId,
-  MaterialFinish,
-  ResumeProfile,
-} from './types/resume';
+import { ChapterId, ResumeProfile } from './types/resume';
 
-const EXHIBIT_MARKERS: { id: ChapterId; num: string; label: string }[] = [
-  { id: 'overview', num: '01', label: 'Overview' },
-  { id: 'experience', num: '02', label: 'Experience' },
-  { id: 'projects', num: '03', label: 'Systems' },
-  { id: 'skills', num: '04', label: 'Skills' },
-  { id: 'credentials', num: '05', label: 'Credentials' },
+const SECTION_ORDER: ChapterId[] = [
+  'overview',
+  'cloud',
+  'cicd',
+  'observability',
+  'security',
+  'career',
 ];
 
 export default function App() {
   const canvasMountRef = useRef<HTMLDivElement | null>(null);
   const sceneManagerRef = useRef<ResumeSceneManager | null>(null);
   const audioEngineRef = useRef<AmbientAudioEngine | null>(null);
-  const markerRefs = useRef<Partial<Record<ChapterId, HTMLButtonElement | null>>>({});
+  const sectionRefs = useRef<Partial<Record<ChapterId, HTMLElement | null>>>({});
 
   const [profile, setProfile] = useState<ResumeProfile>(() =>
     loadResumeProfile(),
   );
   const [activeChapter, setActiveChapter] = useState<ChapterId>('overview');
-  const [activeView, setActiveView] = useState<CameraViewId>('overview');
   const [hoveredExhibit, setHoveredExhibit] = useState<ChapterId | null>(null);
-  const [dossierOpen, setDossierOpen] = useState(false);
   const [modalState, setModalState] = useState<{
     open: boolean;
     tab: 'view' | 'edit';
   }>({ open: false, tab: 'view' });
-  const [controlsCollapsed, setControlsCollapsed] = useState(false);
-  const [explode, setExplode] = useState(0);
-  const [finish, setFinish] = useState<MaterialFinish>('titanium');
-  const [autoRotate, setAutoRotate] = useState(false);
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [contextLost, setContextLost] = useState(false);
   const [webglError, setWebglError] = useState<string | null>(null);
 
-  const handleSelectExhibitFromCanvas = useCallback((chapter: ChapterId) => {
+  const registerSectionRef = useCallback(
+    (id: ChapterId, el: HTMLElement | null) => {
+      sectionRefs.current[id] = el;
+    },
+    [],
+  );
+
+  const scrollToSection = useCallback((chapter: ChapterId) => {
+    const el = sectionRefs.current[chapter];
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
     setActiveChapter(chapter);
-    setActiveView(chapter);
-    setDossierOpen(true);
+    sceneManagerRef.current?.setActiveChapter(chapter);
+    sceneManagerRef.current?.pulseExhibit(chapter);
   }, []);
 
   useEffect(() => {
@@ -68,15 +68,11 @@ export default function App() {
     let manager: ResumeSceneManager | null = null;
     try {
       manager = new ResumeSceneManager(container, profile, {
-        onSelectExhibit: handleSelectExhibitFromCanvas,
+        onSelectExhibit: scrollToSection,
         onHoverExhibit: setHoveredExhibit,
         onContextLostChange: setContextLost,
       });
       sceneManagerRef.current = manager;
-
-      EXHIBIT_MARKERS.forEach((m) => {
-        manager?.registerMarkerElement(m.id, markerRefs.current[m.id] ?? null);
-      });
     } catch (err) {
       setWebglError(
         err instanceof Error ? err.message : 'WebGL initialization unavailable',
@@ -94,49 +90,55 @@ export default function App() {
     };
     // Mount scene once; profile updates flow through manager.updateResumeProfile
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [handleSelectExhibitFromCanvas]);
+  }, [scrollToSection]);
+
+  // Synchronize page vertical scroll to 3D spline camera & chapter detection
+  useEffect(() => {
+    const handleScroll = () => {
+      const maxScroll = Math.max(
+        document.documentElement.scrollHeight - window.innerHeight,
+        1,
+      );
+      const progress = Math.min(Math.max(window.scrollY / maxScroll, 0), 1);
+      sceneManagerRef.current?.setScrollProgress(progress);
+
+      const midY = window.innerHeight * 0.48;
+      let closestId: ChapterId = 'overview';
+      let closestDist = Infinity;
+
+      SECTION_ORDER.forEach((id) => {
+        const el = sectionRefs.current[id];
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
+        const center = rect.top + rect.height * 0.5;
+        const dist = Math.abs(center - midY);
+        if (dist < closestDist) {
+          closestDist = dist;
+          closestId = id;
+        }
+      });
+
+      setActiveChapter((prev) => {
+        if (prev !== closestId) {
+          sceneManagerRef.current?.setActiveChapter(closestId);
+          return closestId;
+        }
+        return prev;
+      });
+    };
+
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('resize', handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('resize', handleScroll);
+    };
+  }, []);
 
   useEffect(() => {
     audioEngineRef.current?.setChapter(activeChapter);
   }, [activeChapter]);
-
-  const navigateToChapter = useCallback(
-    (chapter: ChapterId, openDossier = true) => {
-      setActiveChapter(chapter);
-      setActiveView(chapter);
-      sceneManagerRef.current?.setActiveChapter(chapter);
-      sceneManagerRef.current?.focusView(chapter);
-      if (openDossier) setDossierOpen(true);
-    },
-    [],
-  );
-
-  const handleSelectView = useCallback((view: CameraViewId) => {
-    setActiveView(view);
-    if (view !== 'gallery') {
-      setActiveChapter(view);
-      sceneManagerRef.current?.setActiveChapter(view);
-    }
-    sceneManagerRef.current?.focusView(view);
-  }, []);
-
-  const handleChangeExplode = useCallback((value: number) => {
-    setExplode(value);
-    sceneManagerRef.current?.setExplodeAmount(value);
-  }, []);
-
-  const handleChangeFinish = useCallback((nextFinish: MaterialFinish) => {
-    setFinish(nextFinish);
-    sceneManagerRef.current?.setFinish(nextFinish);
-  }, []);
-
-  const handleToggleAutoRotate = useCallback(() => {
-    setAutoRotate((prev) => {
-      const next = !prev;
-      sceneManagerRef.current?.setAutoRotate(next);
-      return next;
-    });
-  }, []);
 
   const handleToggleAudio = useCallback(() => {
     setAudioEnabled((prev) => {
@@ -144,6 +146,10 @@ export default function App() {
       void audioEngineRef.current?.setEnabled(next);
       return next;
     });
+  }, []);
+
+  const handlePulseExhibit = useCallback((chapter: ChapterId) => {
+    sceneManagerRef.current?.pulseExhibit(chapter);
   }, []);
 
   const handleSaveProfile = useCallback((nextProfile: ResumeProfile) => {
@@ -158,7 +164,7 @@ export default function App() {
     sceneManagerRef.current?.updateResumeProfile(reset);
   }, []);
 
-  // Keyboard shortcuts (H = Zen Mode, 0 = Gallery, 1-5 = Exhibits)
+  // Keyboard shortcuts (M = Audio, 0-5 = Scroll Stages)
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -172,34 +178,35 @@ export default function App() {
       }
       if (modalState.open) return;
 
-      if (e.key === 'h' || e.key === 'H') {
-        setControlsCollapsed((prev) => !prev);
-      } else if (e.key === 'm' || e.key === 'M') {
+      if (e.key === 'm' || e.key === 'M') {
         handleToggleAudio();
       } else if (e.key === '0') {
-        handleSelectView('gallery');
+        scrollToSection('overview');
       } else if (e.key === '1') {
-        navigateToChapter('overview', false);
+        scrollToSection('cloud');
       } else if (e.key === '2') {
-        navigateToChapter('experience', false);
+        scrollToSection('cicd');
       } else if (e.key === '3') {
-        navigateToChapter('projects', false);
+        scrollToSection('observability');
       } else if (e.key === '4') {
-        navigateToChapter('skills', false);
+        scrollToSection('security');
       } else if (e.key === '5') {
-        navigateToChapter('credentials', false);
+        scrollToSection('career');
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [modalState.open, handleSelectView, navigateToChapter, handleToggleAudio]);
+  }, [modalState.open, scrollToSection, handleToggleAudio]);
+
+  // Keep audioEnabled accessible cleanly
+  void audioEnabled;
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-[#0b0e14] select-none">
-      {/* Dedicated WebGL Mount Container (isolated from React HUD re-renders) */}
+    <div className="relative min-h-screen w-full bg-[#0b0e14]">
+      {/* Fixed WebGL 3D Corridor Canvas (never unmounts on React state changes) */}
       <div
         ref={canvasMountRef}
-        className="no-print fixed inset-0 w-full h-full z-0"
+        className="no-print fixed inset-0 w-screen h-screen z-0"
       />
 
       {/* Graceful WebGL Fallback Card if WebGL is unavailable */}
@@ -227,80 +234,23 @@ export default function App() {
         </div>
       )}
 
-      {/* 3D-Projected Exhibit Anchor Markers (positioned via ref at 60fps, hidden in Zen Mode) */}
-      <div
-        aria-hidden={controlsCollapsed || modalState.open}
-        className={`no-print fixed inset-0 z-10 pointer-events-none transition-opacity duration-200 ${
-          controlsCollapsed || modalState.open ? 'opacity-0' : 'opacity-100'
-        }`}
-      >
-        {EXHIBIT_MARKERS.map((marker) => {
-          const isActive = activeChapter === marker.id;
-          const isHovered = hoveredExhibit === marker.id;
-          return (
-            <button
-              key={marker.id}
-              ref={(el) => {
-                markerRefs.current[marker.id] = el;
-              }}
-              type="button"
-              onClick={() => navigateToChapter(marker.id, true)}
-              className={`absolute top-0 left-0 px-2.5 py-1 rounded-md border text-[11px] font-medium transition-colors whitespace-nowrap cursor-pointer ${
-                isActive || isHovered
-                  ? 'bg-[#121826]/95 border-amber-400/80 text-amber-300 shadow-lg'
-                  : 'bg-[#0b0e14]/88 border-white/15 text-slate-200 hover:border-amber-400/60 hover:text-white'
-              }`}
-              style={{ opacity: 0 }}
-            >
-              <span className="font-mono-tabular text-amber-400 mr-1.5">
-                {marker.num}
-              </span>
-              <span>{marker.label}</span>
-            </button>
-          );
-        })}
-      </div>
-
       {/* Top Navigation Bar */}
       <TopNavBar
         candidateName={profile.name}
         activeChapter={activeChapter}
-        activeView={activeView}
-        onNavigateChapter={(ch, open) => navigateToChapter(ch, open)}
+        onScrollToSection={scrollToSection}
         onOpenFullResume={() => setModalState({ open: true, tab: 'view' })}
       />
 
-      {/* Toggleable Exhibit Dossier Sheet */}
-      <ExhibitDossierDrawer
-        open={dossierOpen && !modalState.open}
-        chapter={activeChapter}
+      {/* Interactive Vertical Scroll-Down Core Skills Showcase */}
+      <SkillScrollSections
         profile={profile}
-        onClose={() => setDossierOpen(false)}
-        onSelectChapter={(ch) => navigateToChapter(ch, true)}
-        onOpenFullResume={() => setModalState({ open: true, tab: 'view' })}
-      />
-
-      {/* Unified Collapsible Bottom Control Dock */}
-      <ControlDock
-        profile={profile}
-        collapsed={controlsCollapsed}
-        onToggleCollapsed={() => setControlsCollapsed((prev) => !prev)}
         activeChapter={activeChapter}
-        activeView={activeView}
-        explode={explode}
-        finish={finish}
-        autoRotate={autoRotate}
-        audioEnabled={audioEnabled}
-        onSelectView={handleSelectView}
-        onOpenDossier={(ch) => {
-          setActiveChapter(ch);
-          setDossierOpen(true);
-        }}
-        onOpenEditor={() => setModalState({ open: true, tab: 'edit' })}
-        onChangeExplode={handleChangeExplode}
-        onChangeFinish={handleChangeFinish}
-        onToggleAutoRotate={handleToggleAutoRotate}
-        onToggleAudio={handleToggleAudio}
+        hoveredExhibit={hoveredExhibit}
+        registerSectionRef={registerSectionRef}
+        onScrollToSection={scrollToSection}
+        onPulseExhibit={handlePulseExhibit}
+        onOpenFullResume={(tab) => setModalState({ open: true, tab })}
       />
 
       {/* Full Printable Resume & Live Customizer Modal */}

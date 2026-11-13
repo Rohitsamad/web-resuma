@@ -13,24 +13,36 @@ export interface ExhibitDefinition {
   indexLabel: string;
   title: string;
   group: THREE.Group;
+  rotatableGroup: THREE.Group;
   anchorWorld: THREE.Vector3;
   cameraPosition: THREE.Vector3;
   cameraTarget: THREE.Vector3;
   proxyCollider: THREE.Mesh;
   ringHighlight: THREE.Mesh;
+  pulse: number;
 }
 
 export interface KineticNodes {
   overviewOuterRing: THREE.Object3D;
   overviewInnerRing: THREE.Object3D;
   overviewPrism: THREE.Object3D;
-  skillsRings: THREE.Object3D[];
-  skillsCore: THREE.Object3D;
-  experienceBeacons: THREE.Object3D[];
+  cloudCore: THREE.Object3D;
+  cloudRings: THREE.Object3D[];
+  cloudPods: THREE.Object3D;
+  cicdTurbine: THREE.Object3D;
+  cicdScannerRing: THREE.Object3D;
+  obsRadarDish: THREE.Object3D;
+  obsSpectrumBars: THREE.InstancedMesh;
+  obsBarBaseX: number[];
+  obsBarBaseZ: number[];
+  vaultWheel: THREE.Object3D;
+  vaultCore: THREE.Object3D;
+  careerBeacons: THREE.Object3D[];
 }
 
 export interface BuiltExhibition {
   exhibits: Record<ChapterId, ExhibitDefinition>;
+  orderedChapters: ChapterId[];
   proxyColliders: THREE.Mesh[];
   explodableParts: ExplodablePart[];
   kinetic: KineticNodes;
@@ -50,7 +62,11 @@ function createPolygonShape(sides: number, radius: number): THREE.Shape {
   return shape;
 }
 
-function createRoundedRectShape(width: number, height: number, r: number): THREE.Shape {
+function createRoundedRectShape(
+  width: number,
+  height: number,
+  r: number,
+): THREE.Shape {
   const shape = new THREE.Shape();
   const hw = width / 2;
   const hh = height / 2;
@@ -66,7 +82,11 @@ function createRoundedRectShape(width: number, height: number, r: number): THREE
   return shape;
 }
 
-function createArchShape(width: number, height: number, thickness: number): THREE.Shape {
+function createArchShape(
+  width: number,
+  height: number,
+  thickness: number,
+): THREE.Shape {
   const outer = new THREE.Shape();
   const hw = width / 2;
   const archR = hw;
@@ -118,19 +138,32 @@ export function buildExhibitionScene(
     });
   };
 
-  // Shared contact shadow & highlight ring geometries
   const shadowPlaneGeo = trackGeo(new THREE.PlaneGeometry(4.4, 4.4));
   shadowPlaneGeo.rotateX(-Math.PI / 2);
 
   const highlightRingGeo = trackGeo(new THREE.RingGeometry(1.75, 1.84, 64));
   highlightRingGeo.rotateX(-Math.PI / 2);
 
-  const addGroundedHelpers = (
-    group: THREE.Group,
+  const createExhibitBase = (
     chapterId: ChapterId,
+    pos: [number, number, number],
+    rotY: number,
     scale = 1,
-    colliderSize: [number, number, number] = [3.2, 3.6, 3.2],
-  ): { proxyCollider: THREE.Mesh; ringHighlight: THREE.Mesh } => {
+    colliderSize: [number, number, number] = [3.4, 3.8, 3.4],
+  ): {
+    group: THREE.Group;
+    rotatableGroup: THREE.Group;
+    proxyCollider: THREE.Mesh;
+    ringHighlight: THREE.Mesh;
+  } => {
+    const group = new THREE.Group();
+    group.position.set(pos[0], pos[1], pos[2]);
+    group.rotation.y = rotY;
+    scene.add(group);
+
+    const rotatableGroup = new THREE.Group();
+    group.add(rotatableGroup);
+
     const shadow = new THREE.Mesh(shadowPlaneGeo, mats.contactShadowMat);
     shadow.position.y = 0.01;
     shadow.scale.setScalar(scale);
@@ -139,10 +172,10 @@ export function buildExhibitionScene(
 
     const ringMat = mats.warmEmissive.clone();
     ringMat.transparent = true;
-    ringMat.opacity = 0.18;
+    ringMat.opacity = 0.16;
     const ringHighlight = new THREE.Mesh(highlightRingGeo, ringMat);
     ringHighlight.position.y = 0.025;
-    ringHighlight.scale.setScalar(scale * 0.95);
+    ringHighlight.scale.setScalar(scale * 0.96);
     group.add(ringHighlight);
 
     const proxyGeo = trackGeo(
@@ -154,33 +187,50 @@ export function buildExhibitionScene(
     proxyCollider.userData.chapterId = chapterId;
     group.add(proxyCollider);
 
-    return { proxyCollider, ringHighlight };
+    return { group, rotatableGroup, proxyCollider, ringHighlight };
   };
 
   // =========================================================================
-  // GALLERY FLOOR & PERIMETER BOLLARDS (InstancedMesh)
+  // ARCHITECTURAL CORRIDOR FLOOR & BOLLARDS (InstancedMesh)
   // =========================================================================
-  const floorGeo = trackGeo(new THREE.CircleGeometry(56, 72));
+  const floorGeo = trackGeo(new THREE.PlaneGeometry(88, 150));
   floorGeo.rotateX(-Math.PI / 2);
   const floorMesh = new THREE.Mesh(floorGeo, mats.floorMat);
   floorMesh.receiveShadow = true;
-  floorMesh.position.y = 0;
+  floorMesh.position.set(0, 0, -32);
   scene.add(floorMesh);
 
-  // Perimeter light bollards (28 instances)
-  const bollardGeo = trackGeo(new THREE.CylinderGeometry(0.08, 0.11, 0.95, 12));
-  bollardGeo.translate(0, 0.475, 0);
-  const bollardCount = 28;
-  const bollards = new THREE.InstancedMesh(bollardGeo, mats.instancedBollardMat, bollardCount);
+  // Subtle runway guide rails along the winding corridor
+  const railGeo = trackGeo(new THREE.BoxGeometry(0.06, 0.02, 82));
+  const railMat = mats.darkAnodized;
+  const railL = new THREE.Mesh(railGeo, railMat);
+  railL.position.set(-4.9, 0.01, -29);
+  const railR = new THREE.Mesh(railGeo, railMat);
+  railR.position.set(4.9, 0.01, -29);
+  scene.add(railL, railR);
+
+  // Corridor light bollards (36 instances flanking the runway)
+  const bollardGeo = trackGeo(
+    new THREE.CylinderGeometry(0.075, 0.105, 0.92, 12),
+  );
+  bollardGeo.translate(0, 0.46, 0);
+  const bollardCount = 36;
+  const bollards = new THREE.InstancedMesh(
+    bollardGeo,
+    mats.instancedBollardMat,
+    bollardCount,
+  );
   bollards.castShadow = true;
   bollards.receiveShadow = true;
   const dummy = new THREE.Object3D();
   for (let i = 0; i < bollardCount; i += 1) {
-    const angle = (i / bollardCount) * Math.PI * 2;
-    const radius = 15.5 + (i % 2) * 1.4;
-    dummy.position.set(Math.cos(angle) * radius, 0, Math.sin(angle) * radius);
-    dummy.rotation.set(0, -angle, 0);
-    const s = 0.88 + (i % 3) * 0.12;
+    const side = i % 2 === 0 ? -1 : 1;
+    const row = Math.floor(i / 2);
+    const zPos = 6 - row * 4.1;
+    const xPos = side * (5.3 + (row % 2) * 0.45);
+    dummy.position.set(xPos, 0, zPos);
+    dummy.rotation.set(0, 0, 0);
+    const s = 0.88 + (i % 3) * 0.1;
     dummy.scale.set(s, s, s);
     dummy.updateMatrix();
     bollards.setMatrixAt(i, dummy.matrix);
@@ -190,16 +240,11 @@ export function buildExhibitionScene(
   scene.add(bollards);
 
   // =========================================================================
-  // EXHIBIT 01 — OVERVIEW: Kinetic Drafting Monolith & Nameplate Plinth
+  // STAGE 00 — OVERVIEW: Architectural Reliability Monolith
   // =========================================================================
-  const overviewGroup = new THREE.Group();
-  overviewGroup.position.set(0, 0, 0);
-  scene.add(overviewGroup);
-  const overviewHelpers = addGroundedHelpers(overviewGroup, 'overview', 1.15, [3.4, 3.8, 3.4]);
-
-  // 1. Hexagonal beveled architectural plinth
+  const ov = createExhibitBase('overview', [1.55, 0, 0], -0.22, 1.12);
   const hexBaseGeo = trackGeo(
-    new THREE.ExtrudeGeometry(createPolygonShape(6, 1.55), {
+    new THREE.ExtrudeGeometry(createPolygonShape(6, 1.5), {
       depth: 0.34,
       bevelEnabled: true,
       bevelThickness: 0.05,
@@ -210,24 +255,24 @@ export function buildExhibitionScene(
   hexBaseGeo.rotateX(-Math.PI / 2);
   const hexBase = new THREE.Mesh(hexBaseGeo, mats.plinthStone);
   hexBase.position.y = 0.05;
-  overviewGroup.add(hexBase);
+  ov.rotatableGroup.add(hexBase);
 
-  // 2. Lathe-turned brushed metal collar ring
   const collarPoints = [
-    new THREE.Vector2(1.18, 0),
-    new THREE.Vector2(1.24, 0.04),
-    new THREE.Vector2(1.18, 0.16),
-    new THREE.Vector2(0.86, 0.2),
-    new THREE.Vector2(0.82, 0.26),
+    new THREE.Vector2(1.15, 0),
+    new THREE.Vector2(1.22, 0.04),
+    new THREE.Vector2(1.15, 0.16),
+    new THREE.Vector2(0.84, 0.2),
+    new THREE.Vector2(0.8, 0.26),
     new THREE.Vector2(0.0, 0.26),
   ];
-  const collarGeo = trackGeo(new THREE.LatheGeometry(collarPoints, 48));
-  const collar = new THREE.Mesh(collarGeo, mats.brushedChassis);
+  const collar = new THREE.Mesh(
+    trackGeo(new THREE.LatheGeometry(collarPoints, 48)),
+    mats.brushedChassis,
+  );
   collar.position.y = 0.42;
-  overviewGroup.add(collar);
-  registerExplode(collar, 0, 0.25, 0);
+  ov.rotatableGroup.add(collar);
+  registerExplode(collar, 0, 0.24, 0);
 
-  // 3. Engraved Nameplate Stand (angled toward front-right hero view)
   const plaqueFrameGeo = trackGeo(
     new THREE.ExtrudeGeometry(createRoundedRectShape(1.56, 0.56, 0.04), {
       depth: 0.05,
@@ -238,103 +283,131 @@ export function buildExhibitionScene(
     }),
   );
   const plaqueGroup = new THREE.Group();
-  plaqueGroup.position.set(0, 0.44, 1.28);
+  plaqueGroup.position.set(0, 0.44, 1.24);
   plaqueGroup.rotation.x = -0.52;
   const plaqueFrame = new THREE.Mesh(plaqueFrameGeo, mats.darkAnodized);
-  const plaqueFaceGeo = trackGeo(new THREE.PlaneGeometry(1.44, 0.48));
-  const plaqueFace = new THREE.Mesh(plaqueFaceGeo, mats.nameplateMat);
+  const plaqueFace = new THREE.Mesh(
+    trackGeo(new THREE.PlaneGeometry(1.44, 0.48)),
+    mats.nameplateMat,
+  );
   plaqueFace.position.z = 0.068;
   plaqueGroup.add(plaqueFrame, plaqueFace);
-  overviewGroup.add(plaqueGroup);
+  ov.rotatableGroup.add(plaqueGroup);
   registerExplode(plaqueGroup, 0, 0.12, 0.55);
 
-  // 4. Twin curved brass gimbal cradle arms (TubeGeometry)
-  const cradleCurveL = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(-0.78, 0.68, 0),
-    new THREE.Vector3(-1.05, 1.35, 0),
-    new THREE.Vector3(-0.96, 2.08, 0),
-  ]);
-  const cradleGeoL = trackGeo(new THREE.TubeGeometry(cradleCurveL, 28, 0.045, 12, false));
-  const cradleL = new THREE.Mesh(cradleGeoL, mats.accentBrass);
-  overviewGroup.add(cradleL);
+  const cradleL = new THREE.Mesh(
+    trackGeo(
+      new THREE.TubeGeometry(
+        new THREE.CatmullRomCurve3([
+          new THREE.Vector3(-0.76, 0.68, 0),
+          new THREE.Vector3(-1.02, 1.35, 0),
+          new THREE.Vector3(-0.94, 2.08, 0),
+        ]),
+        28,
+        0.044,
+        12,
+        false,
+      ),
+    ),
+    mats.accentBrass,
+  );
+  const cradleR = new THREE.Mesh(
+    trackGeo(
+      new THREE.TubeGeometry(
+        new THREE.CatmullRomCurve3([
+          new THREE.Vector3(0.76, 0.68, 0),
+          new THREE.Vector3(1.02, 1.35, 0),
+          new THREE.Vector3(0.94, 2.08, 0),
+        ]),
+        28,
+        0.044,
+        12,
+        false,
+      ),
+    ),
+    mats.accentBrass,
+  );
+  ov.rotatableGroup.add(cradleL, cradleR);
   registerExplode(cradleL, -0.45, 0.25, 0);
-
-  const cradleCurveR = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(0.78, 0.68, 0),
-    new THREE.Vector3(1.05, 1.35, 0),
-    new THREE.Vector3(0.96, 2.08, 0),
-  ]);
-  const cradleGeoR = trackGeo(new THREE.TubeGeometry(cradleCurveR, 28, 0.045, 12, false));
-  const cradleR = new THREE.Mesh(cradleGeoR, mats.accentBrass);
-  overviewGroup.add(cradleR);
   registerExplode(cradleR, 0.45, 0.25, 0);
 
-  // 5. Kinetic Gimbal Rings + Optical Prism Core
   const kineticPivot = new THREE.Group();
   kineticPivot.position.set(0, 2.05, 0);
-  overviewGroup.add(kineticPivot);
+  ov.rotatableGroup.add(kineticPivot);
   registerExplode(kineticPivot, 0, 0.72, 0);
 
-  const outerRingGeo = trackGeo(new THREE.TorusGeometry(0.92, 0.036, 16, 72));
-  const overviewOuterRing = new THREE.Mesh(outerRingGeo, mats.brushedChassis);
-  kineticPivot.add(overviewOuterRing);
-
-  const innerRingGeo = trackGeo(new THREE.TorusGeometry(0.68, 0.028, 16, 64));
-  const overviewInnerRing = new THREE.Mesh(innerRingGeo, mats.accentBrass);
+  const overviewOuterRing = new THREE.Mesh(
+    trackGeo(new THREE.TorusGeometry(0.9, 0.036, 16, 72)),
+    mats.brushedChassis,
+  );
+  const overviewInnerRing = new THREE.Mesh(
+    trackGeo(new THREE.TorusGeometry(0.66, 0.028, 16, 64)),
+    mats.accentBrass,
+  );
   overviewInnerRing.rotation.x = Math.PI / 3;
-  kineticPivot.add(overviewInnerRing);
-
-  // Optical glass prism + glowing core filament
-  const prismGroup = new THREE.Group();
-  const prismGeo = trackGeo(new THREE.OctahedronGeometry(0.42, 0));
-  const prismMesh = new THREE.Mesh(prismGeo, mats.opticalGlass);
+  const overviewPrism = new THREE.Group();
+  const prismMesh = new THREE.Mesh(
+    trackGeo(new THREE.OctahedronGeometry(0.42, 0)),
+    mats.opticalGlass,
+  );
   prismMesh.renderOrder = 2;
-  const prismCoreGeo = trackGeo(new THREE.OctahedronGeometry(0.14, 0));
-  const prismCore = new THREE.Mesh(prismCoreGeo, mats.warmEmissive);
-  prismGroup.add(prismCore, prismMesh);
-  kineticPivot.add(prismGroup);
+  const prismCore = new THREE.Mesh(
+    trackGeo(new THREE.OctahedronGeometry(0.14, 0)),
+    mats.warmEmissive,
+  );
+  overviewPrism.add(prismCore, prismMesh);
+  kineticPivot.add(overviewOuterRing, overviewInnerRing, overviewPrism);
 
-  // 6. Articulated Architectural Drafting Lamp
-  const lampCurve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(-0.62, 0.65, -0.58),
-    new THREE.Vector3(-1.12, 1.9, -0.82),
-    new THREE.Vector3(-0.55, 2.95, -0.35),
-    new THREE.Vector3(-0.18, 2.86, -0.15),
-  ]);
-  const lampArmGeo = trackGeo(new THREE.TubeGeometry(lampCurve, 32, 0.028, 10, false));
-  const lampArm = new THREE.Mesh(lampArmGeo, mats.darkAnodized);
-  const lampShadePoints = [
-    new THREE.Vector2(0.03, 0.24),
-    new THREE.Vector2(0.08, 0.22),
-    new THREE.Vector2(0.22, 0.02),
-    new THREE.Vector2(0.2, 0),
-  ];
-  const lampShadeGeo = trackGeo(new THREE.LatheGeometry(lampShadePoints, 28));
-  const lampShade = new THREE.Mesh(lampShadeGeo, mats.accentBrass);
+  const lampArm = new THREE.Mesh(
+    trackGeo(
+      new THREE.TubeGeometry(
+        new THREE.CatmullRomCurve3([
+          new THREE.Vector3(-0.62, 0.65, -0.58),
+          new THREE.Vector3(-1.12, 1.9, -0.82),
+          new THREE.Vector3(-0.55, 2.95, -0.35),
+          new THREE.Vector3(-0.18, 2.86, -0.15),
+        ]),
+        32,
+        0.028,
+        10,
+        false,
+      ),
+    ),
+    mats.darkAnodized,
+  );
+  const lampShade = new THREE.Mesh(
+    trackGeo(
+      new THREE.LatheGeometry(
+        [
+          new THREE.Vector2(0.03, 0.24),
+          new THREE.Vector2(0.08, 0.22),
+          new THREE.Vector2(0.22, 0.02),
+          new THREE.Vector2(0.2, 0),
+        ],
+        28,
+      ),
+    ),
+    mats.accentBrass,
+  );
   lampShade.position.set(-0.18, 2.66, -0.15);
   lampShade.rotation.z = -0.35;
-  const lampBulbGeo = trackGeo(new THREE.SphereGeometry(0.065, 16, 16));
-  const lampBulb = new THREE.Mesh(lampBulbGeo, mats.warmEmissive);
+  const lampBulb = new THREE.Mesh(
+    trackGeo(new THREE.SphereGeometry(0.065, 16, 16)),
+    mats.warmEmissive,
+  );
   lampBulb.position.set(-0.15, 2.68, -0.15);
-  overviewGroup.add(lampArm, lampShade, lampBulb);
+  ov.rotatableGroup.add(lampArm, lampShade, lampBulb);
   registerExplode(lampArm, -0.35, 0.4, -0.35);
   registerExplode(lampShade, -0.35, 0.55, -0.35);
   registerExplode(lampBulb, -0.35, 0.55, -0.35);
-
-  enableShadows(overviewGroup);
+  enableShadows(ov.group);
 
   // =========================================================================
-  // EXHIBIT 02 — EXPERIENCE: Stepped Chronology Tower
+  // STAGE 01 — CLOUD & KUBERNETES: Orchestrated Cluster & IaC Matrix
   // =========================================================================
-  const expGroup = new THREE.Group();
-  expGroup.position.set(-6.8, 0, -2.4);
-  expGroup.rotation.y = 0.42;
-  scene.add(expGroup);
-  const expHelpers = addGroundedHelpers(expGroup, 'experience', 1.05, [3.2, 4.2, 3.2]);
-
-  // 1. Chamfered circular-octagonal base slab
-  const expBaseGeo = trackGeo(
-    new THREE.ExtrudeGeometry(createPolygonShape(8, 1.45), {
+  const cl = createExhibitBase('cloud', [2.25, 0, -11.5], -0.38, 1.08);
+  const clBaseGeo = trackGeo(
+    new THREE.ExtrudeGeometry(createPolygonShape(8, 1.48), {
       depth: 0.28,
       bevelEnabled: true,
       bevelThickness: 0.04,
@@ -342,97 +415,291 @@ export function buildExhibitionScene(
       bevelSegments: 3,
     }),
   );
-  expBaseGeo.rotateX(-Math.PI / 2);
-  const expBase = new THREE.Mesh(expBaseGeo, mats.plinthStone);
-  expBase.position.y = 0.04;
-  expGroup.add(expBase);
+  clBaseGeo.rotateX(-Math.PI / 2);
+  const clBase = new THREE.Mesh(clBaseGeo, mats.plinthStone);
+  clBase.position.y = 0.04;
+  cl.rotatableGroup.add(clBase);
 
-  // 2. Central brushed precision spine column + top finial
-  const spineGeo = trackGeo(new THREE.CylinderGeometry(0.18, 0.22, 3.25, 24));
-  const spine = new THREE.Mesh(spineGeo, mats.brushedChassis);
-  spine.position.y = 1.94;
-  expGroup.add(spine);
+  // Central Kubernetes control-plane spire
+  const cpSpine = new THREE.Mesh(
+    trackGeo(new THREE.CylinderGeometry(0.2, 0.28, 2.45, 16)),
+    mats.brushedChassis,
+  );
+  cpSpine.position.y = 1.54;
+  cl.rotatableGroup.add(cpSpine);
 
-  const finialGeo = trackGeo(new THREE.CylinderGeometry(0.06, 0.2, 0.24, 24));
-  const finial = new THREE.Mesh(finialGeo, mats.accentBrass);
-  finial.position.y = 3.68;
-  expGroup.add(finial);
-  registerExplode(finial, 0, 0.65, 0);
+  const cloudPivot = new THREE.Group();
+  cloudPivot.position.y = 2.05;
+  cl.rotatableGroup.add(cloudPivot);
+  registerExplode(cloudPivot, 0, 0.55, 0);
 
-  // 3. Four cantilevered stepped role platforms + brass tie-rods + glass milestone beacons
-  const stepPlateGeo = trackGeo(
-    new THREE.ExtrudeGeometry(createRoundedRectShape(1.42, 0.78, 0.1), {
-      depth: 0.11,
+  const cloudCore = new THREE.Mesh(
+    trackGeo(new THREE.IcosahedronGeometry(0.32, 1)),
+    mats.coolEmissive,
+  );
+  const cloudGlass = new THREE.Mesh(
+    trackGeo(new THREE.SphereGeometry(0.48, 32, 24)),
+    mats.opticalGlass,
+  );
+  cloudGlass.renderOrder = 2;
+  cloudPivot.add(cloudCore, cloudGlass);
+
+  // 6 cantilevered worker pod blades + curved fiber mesh conduits
+  const cloudPods = new THREE.Group();
+  cloudPivot.add(cloudPods);
+  const podBladeGeo = trackGeo(
+    new THREE.ExtrudeGeometry(createRoundedRectShape(0.62, 0.36, 0.06), {
+      depth: 0.1,
+      bevelEnabled: true,
+      bevelThickness: 0.015,
+      bevelSize: 0.015,
+      bevelSegments: 2,
+    }),
+  );
+  podBladeGeo.rotateX(-Math.PI / 2);
+
+  for (let i = 0; i < 6; i += 1) {
+    const ang = (i / 6) * Math.PI * 2;
+    const rx = Math.cos(ang) * 1.05;
+    const rz = Math.sin(ang) * 1.05;
+    const ry = ((i % 3) - 1) * 0.32;
+
+    const podGroup = new THREE.Group();
+    podGroup.position.set(rx, ry, rz);
+    podGroup.rotation.y = -ang;
+
+    const blade = new THREE.Mesh(
+      podBladeGeo,
+      i % 2 === 0 ? mats.darkAnodized : mats.brushedChassis,
+    );
+    const led = new THREE.Mesh(
+      trackGeo(new THREE.BoxGeometry(0.08, 0.08, 0.24)),
+      i % 2 === 0 ? mats.warmEmissive : mats.coolEmissive,
+    );
+    led.position.set(0.24, 0.11, 0);
+    podGroup.add(blade, led);
+    cloudPods.add(podGroup);
+    registerExplode(podGroup, Math.cos(ang) * 0.45, ry * 0.6, Math.sin(ang) * 0.45);
+
+    // Fiber conduit linking spine to each pod
+    const conduit = new THREE.Mesh(
+      trackGeo(
+        new THREE.TubeGeometry(
+          new THREE.CatmullRomCurve3([
+            new THREE.Vector3(0, -0.4, 0),
+            new THREE.Vector3(rx * 0.55, ry - 0.18, rz * 0.55),
+            new THREE.Vector3(rx * 0.85, ry, rz * 0.85),
+          ]),
+          18,
+          0.022,
+          8,
+          false,
+        ),
+      ),
+      mats.accentBrass,
+    );
+    cloudPods.add(conduit);
+  }
+
+  // Concentric Helm & Terraform orbital rings + InstancedMesh 24 ingress nodes
+  const cloudRings: THREE.Object3D[] = [];
+  [
+    { r: 0.85, tube: 0.024, tx: 0.48, tz: 0.25, mat: mats.accentBrass },
+    { r: 1.24, tube: 0.026, tx: -0.52, tz: -0.35, mat: mats.brushedChassis },
+  ].forEach((cfg) => {
+    const rMesh = new THREE.Mesh(
+      trackGeo(new THREE.TorusGeometry(cfg.r, cfg.tube, 14, 64)),
+      cfg.mat,
+    );
+    rMesh.rotation.set(cfg.tx, 0, cfg.tz);
+    cloudPivot.add(rMesh);
+    cloudRings.push(rMesh);
+  });
+
+  const ingressNodeGeo = trackGeo(new THREE.SphereGeometry(0.052, 12, 12));
+  const ingressCount = 24;
+  const ingressNodes = new THREE.InstancedMesh(
+    ingressNodeGeo,
+    mats.instancedOrbitalMat,
+    ingressCount,
+  );
+  const nodeColor = new THREE.Color();
+  for (let i = 0; i < ingressCount; i += 1) {
+    const band = i % 2;
+    const radius = band === 0 ? 0.85 : 1.24;
+    const tilt = band === 0 ? 0.48 : -0.52;
+    const theta = (i / ingressCount) * Math.PI * 2 * 2;
+    dummy.position.set(
+      Math.cos(theta) * radius,
+      Math.sin(theta) * radius * Math.sin(tilt),
+      Math.sin(theta) * radius * Math.cos(tilt),
+    );
+    dummy.rotation.set(0, 0, 0);
+    dummy.scale.setScalar(0.85 + (i % 4) * 0.1);
+    dummy.updateMatrix();
+    ingressNodes.setMatrixAt(i, dummy.matrix);
+    nodeColor.setHex(band === 0 ? 0xf59e0b : 0x38bdf8);
+    ingressNodes.setColorAt(i, nodeColor);
+  }
+  ingressNodes.instanceMatrix.needsUpdate = true;
+  if (ingressNodes.instanceColor) ingressNodes.instanceColor.needsUpdate = true;
+  ingressNodes.computeBoundingSphere();
+  cloudPivot.add(ingressNodes);
+  enableShadows(cl.group);
+
+  // =========================================================================
+  // STAGE 02 — CI/CD & DEVSECOPS: Automated Pipeline Forge & Security Gate
+  // =========================================================================
+  const ci = createExhibitBase('cicd', [-2.25, 0, -23.0], 0.36, 1.08, [3.6, 3.4, 3.4]);
+  const ciBaseGeo = trackGeo(
+    new THREE.ExtrudeGeometry(createRoundedRectShape(2.6, 1.55, 0.14), {
+      depth: 0.26,
+      bevelEnabled: true,
+      bevelThickness: 0.035,
+      bevelSize: 0.035,
+      bevelSegments: 2,
+    }),
+  );
+  ciBaseGeo.rotateX(-Math.PI / 2);
+  const ciBase = new THREE.Mesh(ciBaseGeo, mats.plinthStone);
+  ciBase.position.y = 0.04;
+  ci.rotatableGroup.add(ciBase);
+
+  // Brushed gantry deck & parallel rails
+  const deckGeo = trackGeo(
+    new THREE.ExtrudeGeometry(createRoundedRectShape(2.45, 1.18, 0.08), {
+      depth: 0.12,
       bevelEnabled: true,
       bevelThickness: 0.02,
       bevelSize: 0.02,
       bevelSegments: 2,
     }),
   );
-  stepPlateGeo.rotateX(-Math.PI / 2);
+  deckGeo.rotateX(-Math.PI / 2);
+  const deckMesh = new THREE.Mesh(deckGeo, mats.brushedChassis);
+  deckMesh.position.y = 0.92;
+  ci.rotatableGroup.add(deckMesh);
+  registerExplode(deckMesh, 0, 0.24, 0);
 
-  const beaconCapGeo = trackGeo(new THREE.CylinderGeometry(0.09, 0.11, 0.18, 20));
-  const tieRodGeo = trackGeo(new THREE.CylinderGeometry(0.022, 0.022, 0.65, 10));
-  const experienceBeacons: THREE.Object3D[] = [];
+  const gantryLegGeo = trackGeo(new THREE.BoxGeometry(0.14, 0.65, 0.85));
+  const ciLegL = new THREE.Mesh(gantryLegGeo, mats.darkAnodized);
+  ciLegL.position.set(-0.92, 0.58, 0);
+  const ciLegR = new THREE.Mesh(gantryLegGeo, mats.darkAnodized);
+  ciLegR.position.set(0.92, 0.58, 0);
+  ci.rotatableGroup.add(ciLegL, ciLegR);
 
-  for (let i = 0; i < 4; i += 1) {
-    const tierGroup = new THREE.Group();
-    const yLevel = 0.75 + i * 0.68;
-    const angle = i * 1.15 - 0.8;
-    tierGroup.position.set(0, yLevel, 0);
-    tierGroup.rotation.y = angle;
+  // Kaniko Build Turbine (left stage)
+  const turbinePoints = [
+    new THREE.Vector2(0, 0),
+    new THREE.Vector2(0.32, 0),
+    new THREE.Vector2(0.34, 0.16),
+    new THREE.Vector2(0.24, 0.28),
+    new THREE.Vector2(0.28, 0.42),
+    new THREE.Vector2(0.16, 0.58),
+    new THREE.Vector2(0, 0.64),
+  ];
+  const cicdTurbine = new THREE.Group();
+  cicdTurbine.position.set(-0.75, 1.06, 0);
+  const turbineMesh = new THREE.Mesh(
+    trackGeo(new THREE.LatheGeometry(turbinePoints, 24)),
+    mats.accentBrass,
+  );
+  const turbineCore = new THREE.Mesh(
+    trackGeo(new THREE.CylinderGeometry(0.12, 0.12, 0.72, 16)),
+    mats.warmEmissive,
+  );
+  turbineCore.position.y = 0.36;
+  cicdTurbine.add(turbineMesh, turbineCore);
+  ci.rotatableGroup.add(cicdTurbine);
+  registerExplode(cicdTurbine, -0.35, 0.48, 0);
 
-    const plate = new THREE.Mesh(
-      stepPlateGeo,
-      i % 2 === 0 ? mats.darkAnodized : mats.brushedChassis,
-    );
-    plate.position.set(0.55, 0, 0);
-    tierGroup.add(plate);
+  // Gitleaks / DefectDojo Security Gate Arch (center stage)
+  const gateArchGeo = trackGeo(
+    new THREE.ExtrudeGeometry(createArchShape(1.05, 1.38, 0.16), {
+      depth: 0.24,
+      bevelEnabled: true,
+      bevelThickness: 0.02,
+      bevelSize: 0.02,
+      bevelSegments: 2,
+    }),
+  );
+  gateArchGeo.translate(0, 0, -0.12);
+  const gateArch = new THREE.Mesh(gateArchGeo, mats.darkAnodized);
+  gateArch.position.set(0.12, 1.05, 0);
+  gateArch.rotation.y = Math.PI / 2;
+  ci.rotatableGroup.add(gateArch);
+  registerExplode(gateArch, 0, 0.56, 0);
 
-    const collarRing = new THREE.Mesh(
-      trackGeo(new THREE.TorusGeometry(0.24, 0.028, 12, 32)),
-      mats.accentBrass,
-    );
-    collarRing.rotation.x = Math.PI / 2;
-    collarRing.position.y = 0.06;
-    tierGroup.add(collarRing);
+  const cicdScannerRing = new THREE.Mesh(
+    trackGeo(new THREE.TorusGeometry(0.36, 0.028, 12, 42)),
+    mats.coolEmissive,
+  );
+  cicdScannerRing.position.set(0.12, 1.65, 0);
+  cicdScannerRing.rotation.y = Math.PI / 2;
+  ci.rotatableGroup.add(cicdScannerRing);
 
-    const beacon = new THREE.Mesh(beaconCapGeo, mats.warmEmissive);
-    beacon.position.set(1.06, 0.22, 0);
-    tierGroup.add(beacon);
-    experienceBeacons.push(beacon);
+  const scannerLens = new THREE.Mesh(
+    trackGeo(new THREE.CylinderGeometry(0.32, 0.32, 0.04, 24)),
+    mats.opticalGlass,
+  );
+  scannerLens.rotation.z = Math.PI / 2;
+  scannerLens.position.set(0.12, 1.65, 0);
+  scannerLens.renderOrder = 2;
+  ci.rotatableGroup.add(scannerLens);
 
-    const glassSleeve = new THREE.Mesh(
-      trackGeo(new THREE.CylinderGeometry(0.13, 0.13, 0.26, 20)),
-      mats.opticalGlass,
-    );
-    glassSleeve.position.set(1.06, 0.24, 0);
-    glassSleeve.renderOrder = 2;
-    tierGroup.add(glassSleeve);
+  // Live Pipeline Console Display
+  const pipeConsoleGroup = new THREE.Group();
+  pipeConsoleGroup.position.set(0, 2.38, -0.45);
+  pipeConsoleGroup.rotation.x = 0.12;
+  const pipeChassis = new THREE.Mesh(
+    trackGeo(
+      new THREE.ExtrudeGeometry(createRoundedRectShape(1.86, 0.92, 0.04), {
+        depth: 0.05,
+        bevelEnabled: true,
+        bevelThickness: 0.012,
+        bevelSize: 0.012,
+        bevelSegments: 2,
+      }),
+    ),
+    mats.darkAnodized,
+  );
+  const pipeScreen = new THREE.Mesh(
+    trackGeo(new THREE.PlaneGeometry(1.74, 0.82)),
+    mats.pipelineDisplayMat,
+  );
+  pipeScreen.position.z = 0.064;
+  pipeConsoleGroup.add(pipeChassis, pipeScreen);
+  ci.rotatableGroup.add(pipeConsoleGroup);
+  registerExplode(pipeConsoleGroup, 0, 0.72, -0.35);
 
-    if (i < 3) {
-      const rod = new THREE.Mesh(tieRodGeo, mats.accentBrass);
-      rod.position.set(0.88, 0.36, 0.22);
-      tierGroup.add(rod);
-    }
-
-    expGroup.add(tierGroup);
-    registerExplode(tierGroup, Math.cos(angle) * 0.42, (i + 1) * 0.24, -Math.sin(angle) * 0.42);
+  // InstancedMesh 10 pipeline artifact blocks along conveyor track
+  const artifactGeo = trackGeo(new THREE.BoxGeometry(0.15, 0.15, 0.24));
+  const artifactCount = 10;
+  const artifacts = new THREE.InstancedMesh(
+    artifactGeo,
+    mats.instancedOrbitalMat,
+    artifactCount,
+  );
+  for (let i = 0; i < artifactCount; i += 1) {
+    dummy.position.set(-1.0 + i * 0.22, 1.13, 0.28 - (i % 2) * 0.56);
+    dummy.rotation.set(0, 0, 0);
+    dummy.scale.setScalar(0.9 + (i % 3) * 0.12);
+    dummy.updateMatrix();
+    artifacts.setMatrixAt(i, dummy.matrix);
+    nodeColor.setHex(i % 2 === 0 ? 0xf59e0b : 0x38bdf8);
+    artifacts.setColorAt(i, nodeColor);
   }
-
-  enableShadows(expGroup);
+  artifacts.instanceMatrix.needsUpdate = true;
+  if (artifacts.instanceColor) artifacts.instanceColor.needsUpdate = true;
+  artifacts.computeBoundingSphere();
+  ci.rotatableGroup.add(artifacts);
+  enableShadows(ci.group);
 
   // =========================================================================
-  // EXHIBIT 03 — PROJECTS: Engineering Workstation & Prototype Rig
+  // STAGE 03 — OBSERVABILITY & AI4OPS: Telemetry Console & Radar Array
   // =========================================================================
-  const projGroup = new THREE.Group();
-  projGroup.position.set(6.8, 0, -2.4);
-  projGroup.rotation.y = -0.45;
-  scene.add(projGroup);
-  const projHelpers = addGroundedHelpers(projGroup, 'projects', 1.1, [3.6, 3.2, 3.2]);
-
-  // 1. Architectural trestle plinth + cantilevered desk surface
-  const deskPedestalGeo = trackGeo(
+  const ob = createExhibitBase('observability', [2.25, 0, -34.5], -0.4, 1.1, [3.6, 3.5, 3.2]);
+  const obPedestalGeo = trackGeo(
     new THREE.ExtrudeGeometry(createRoundedRectShape(2.4, 1.35, 0.12), {
       depth: 0.24,
       bevelEnabled: true,
@@ -441,19 +708,24 @@ export function buildExhibitionScene(
       bevelSegments: 2,
     }),
   );
-  deskPedestalGeo.rotateX(-Math.PI / 2);
-  const deskPedestal = new THREE.Mesh(deskPedestalGeo, mats.plinthStone);
-  deskPedestal.position.y = 0.03;
-  projGroup.add(deskPedestal);
+  obPedestalGeo.rotateX(-Math.PI / 2);
+  const obPedestal = new THREE.Mesh(obPedestalGeo, mats.plinthStone);
+  obPedestal.position.y = 0.03;
+  ob.rotatableGroup.add(obPedestal);
 
-  const legGeo = trackGeo(new THREE.BoxGeometry(0.12, 0.92, 0.95));
-  const legL = new THREE.Mesh(legGeo, mats.darkAnodized);
-  legL.position.set(-0.98, 0.72, 0);
-  const legR = new THREE.Mesh(legGeo, mats.darkAnodized);
-  legR.position.set(0.98, 0.72, 0);
-  projGroup.add(legL, legR);
+  const obLegL = new THREE.Mesh(
+    trackGeo(new THREE.BoxGeometry(0.12, 0.92, 0.95)),
+    mats.darkAnodized,
+  );
+  obLegL.position.set(-0.98, 0.72, 0);
+  const obLegR = new THREE.Mesh(
+    trackGeo(new THREE.BoxGeometry(0.12, 0.92, 0.95)),
+    mats.darkAnodized,
+  );
+  obLegR.position.set(0.98, 0.72, 0);
+  ob.rotatableGroup.add(obLegL, obLegR);
 
-  const tabletopGeo = trackGeo(
+  const obTopGeo = trackGeo(
     new THREE.ExtrudeGeometry(createRoundedRectShape(2.65, 1.42, 0.08), {
       depth: 0.09,
       bevelEnabled: true,
@@ -462,246 +734,239 @@ export function buildExhibitionScene(
       bevelSegments: 3,
     }),
   );
-  tabletopGeo.rotateX(-Math.PI / 2);
-  const tabletop = new THREE.Mesh(tabletopGeo, mats.brushedChassis);
-  tabletop.position.y = 1.2;
-  projGroup.add(tabletop);
-  registerExplode(tabletop, 0, 0.24, 0);
+  obTopGeo.rotateX(-Math.PI / 2);
+  const obTop = new THREE.Mesh(obTopGeo, mats.brushedChassis);
+  obTop.position.y = 1.2;
+  ob.rotatableGroup.add(obTop);
+  registerExplode(obTop, 0, 0.24, 0);
 
-  // 2. Primary Ultrawide Display + Brass Stand Arm
-  const monitorArmCurve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(-0.22, 1.29, -0.46),
-    new THREE.Vector3(-0.22, 1.72, -0.52),
-    new THREE.Vector3(-0.22, 1.88, -0.34),
-  ]);
-  const monitorArm = new THREE.Mesh(
-    trackGeo(new THREE.TubeGeometry(monitorArmCurve, 18, 0.035, 10, false)),
-    mats.accentBrass,
-  );
-  projGroup.add(monitorArm);
-
+  // Dual Telemetry Monitors
   const mainMonitorGroup = new THREE.Group();
-  mainMonitorGroup.position.set(-0.22, 1.92, -0.26);
+  mainMonitorGroup.position.set(-0.26, 1.92, -0.26);
   mainMonitorGroup.rotation.x = -0.06;
-  const mainChassisGeo = trackGeo(
-    new THREE.ExtrudeGeometry(createRoundedRectShape(1.56, 0.92, 0.04), {
-      depth: 0.045,
-      bevelEnabled: true,
-      bevelThickness: 0.012,
-      bevelSize: 0.012,
-      bevelSegments: 2,
-    }),
+  const mainChassis = new THREE.Mesh(
+    trackGeo(
+      new THREE.ExtrudeGeometry(createRoundedRectShape(1.56, 0.92, 0.04), {
+        depth: 0.045,
+        bevelEnabled: true,
+        bevelThickness: 0.012,
+        bevelSize: 0.012,
+        bevelSegments: 2,
+      }),
+    ),
+    mats.darkAnodized,
   );
-  const mainChassis = new THREE.Mesh(mainChassisGeo, mats.darkAnodized);
   const mainScreen = new THREE.Mesh(
     trackGeo(new THREE.PlaneGeometry(1.44, 0.82)),
     mats.displayPrimaryMat,
   );
   mainScreen.position.z = 0.058;
   mainMonitorGroup.add(mainChassis, mainScreen);
-  projGroup.add(mainMonitorGroup);
-  registerExplode(mainMonitorGroup, -0.2, 0.56, -0.25);
+  ob.rotatableGroup.add(mainMonitorGroup);
+  registerExplode(mainMonitorGroup, -0.22, 0.56, -0.25);
 
-  // 3. Secondary Vertical Reference Display
   const sideMonitorGroup = new THREE.Group();
-  sideMonitorGroup.position.set(0.84, 1.88, -0.1);
+  sideMonitorGroup.position.set(0.84, 1.88, -0.08);
   sideMonitorGroup.rotation.y = -0.38;
-  const sideChassisGeo = trackGeo(
-    new THREE.ExtrudeGeometry(createRoundedRectShape(0.66, 0.88, 0.035), {
-      depth: 0.04,
-      bevelEnabled: true,
-      bevelThickness: 0.01,
-      bevelSize: 0.01,
-      bevelSegments: 2,
-    }),
+  const sideChassis = new THREE.Mesh(
+    trackGeo(
+      new THREE.ExtrudeGeometry(createRoundedRectShape(0.66, 0.88, 0.035), {
+        depth: 0.04,
+        bevelEnabled: true,
+        bevelThickness: 0.01,
+        bevelSize: 0.01,
+        bevelSegments: 2,
+      }),
+    ),
+    mats.darkAnodized,
   );
-  const sideChassis = new THREE.Mesh(sideChassisGeo, mats.darkAnodized);
   const sideScreen = new THREE.Mesh(
     trackGeo(new THREE.PlaneGeometry(0.58, 0.78)),
     mats.displaySecondaryMat,
   );
   sideScreen.position.z = 0.052;
   sideMonitorGroup.add(sideChassis, sideScreen);
-  projGroup.add(sideMonitorGroup);
+  ob.rotatableGroup.add(sideMonitorGroup);
   registerExplode(sideMonitorGroup, 0.45, 0.52, -0.12);
 
-  // 4. Milled Mechanical Keyboard Deck + Precision Rotary Encoder Puck
-  const kbDeckGeo = trackGeo(
-    new THREE.ExtrudeGeometry(createRoundedRectShape(0.95, 0.36, 0.025), {
-      depth: 0.04,
-      bevelEnabled: true,
-      bevelThickness: 0.008,
-      bevelSize: 0.008,
-      bevelSegments: 2,
-    }),
-  );
-  kbDeckGeo.rotateX(-Math.PI / 2);
-  const kbDeck = new THREE.Mesh(kbDeckGeo, mats.darkAnodized);
-  kbDeck.position.set(-0.25, 1.31, 0.28);
-  kbDeck.rotation.x = 0.08;
-  projGroup.add(kbDeck);
-  registerExplode(kbDeck, -0.15, 0.42, 0.32);
-
-  const dialPoints = [
-    new THREE.Vector2(0, 0),
-    new THREE.Vector2(0.14, 0),
-    new THREE.Vector2(0.14, 0.055),
-    new THREE.Vector2(0.11, 0.075),
-    new THREE.Vector2(0.11, 0.13),
-    new THREE.Vector2(0, 0.13),
+  // Parabolic AI4Ops Radar Dish on pedestal corner
+  const obsRadarDish = new THREE.Group();
+  obsRadarDish.position.set(-0.92, 1.56, 0.25);
+  const dishPoints = [
+    new THREE.Vector2(0.01, 0.0),
+    new THREE.Vector2(0.18, 0.03),
+    new THREE.Vector2(0.32, 0.14),
+    new THREE.Vector2(0.36, 0.22),
   ];
-  const dialPuck = new THREE.Mesh(
-    trackGeo(new THREE.LatheGeometry(dialPoints, 32)),
+  const dishBowl = new THREE.Mesh(
+    trackGeo(new THREE.LatheGeometry(dishPoints, 28)),
     mats.accentBrass,
   );
-  dialPuck.position.set(0.55, 1.31, 0.28);
-  projGroup.add(dialPuck);
-  registerExplode(dialPuck, 0.28, 0.48, 0.32);
-
-  // 5. Optical Lens Prototype Unit on Desk Corner
-  const lensBarrelPoints = [
-    new THREE.Vector2(0, 0),
-    new THREE.Vector2(0.16, 0),
-    new THREE.Vector2(0.16, 0.16),
-    new THREE.Vector2(0.18, 0.19),
-    new THREE.Vector2(0.18, 0.28),
-    new THREE.Vector2(0.13, 0.28),
-  ];
-  const lensGroup = new THREE.Group();
-  lensGroup.position.set(-0.96, 1.31, 0.22);
-  const lensBarrel = new THREE.Mesh(
-    trackGeo(new THREE.LatheGeometry(lensBarrelPoints, 32)),
-    mats.darkAnodized,
-  );
-  const lensGlass = new THREE.Mesh(
-    trackGeo(new THREE.SphereGeometry(0.125, 24, 16, 0, Math.PI * 2, 0, Math.PI * 0.45)),
-    mats.opticalGlass,
-  );
-  lensGlass.position.y = 0.22;
-  lensGlass.renderOrder = 2;
-  lensGroup.add(lensBarrel, lensGlass);
-  projGroup.add(lensGroup);
-  registerExplode(lensGroup, -0.4, 0.52, 0.25);
-
-  enableShadows(projGroup);
-
-  // =========================================================================
-  // EXHIBIT 04 — SKILLS: Orbital Stack Orrery (with InstancedMesh nodes)
-  // =========================================================================
-  const skillsGroup = new THREE.Group();
-  skillsGroup.position.set(-4.4, 0, 5.2);
-  scene.add(skillsGroup);
-  const skillsHelpers = addGroundedHelpers(skillsGroup, 'skills', 1.05, [3.2, 3.6, 3.2]);
-
-  // 1. Lathe-turned pedestal base & brass bearing cup
-  const orreryBasePoints = [
-    new THREE.Vector2(0, 0),
-    new THREE.Vector2(1.22, 0),
-    new THREE.Vector2(1.16, 0.18),
-    new THREE.Vector2(0.88, 0.28),
-    new THREE.Vector2(0.42, 0.42),
-    new THREE.Vector2(0.28, 0.88),
-    new THREE.Vector2(0.46, 0.96),
-    new THREE.Vector2(0, 0.96),
-  ];
-  const orreryBase = new THREE.Mesh(
-    trackGeo(new THREE.LatheGeometry(orreryBasePoints, 40)),
-    mats.plinthStone,
-  );
-  skillsGroup.add(orreryBase);
-
-  const bearingCup = new THREE.Mesh(
-    trackGeo(new THREE.CylinderGeometry(0.52, 0.4, 0.12, 36)),
-    mats.accentBrass,
-  );
-  bearingCup.position.y = 1.02;
-  skillsGroup.add(bearingCup);
-  registerExplode(bearingCup, 0, 0.24, 0);
-
-  // 2. Central glowing core & glass containment dome
-  const orreryPivot = new THREE.Group();
-  orreryPivot.position.y = 2.15;
-  skillsGroup.add(orreryPivot);
-  registerExplode(orreryPivot, 0, 0.65, 0);
-
-  const skillsCore = new THREE.Mesh(
-    trackGeo(new THREE.IcosahedronGeometry(0.28, 1)),
+  dishBowl.rotation.x = 0.6;
+  const emitterNeedle = new THREE.Mesh(
+    trackGeo(new THREE.CylinderGeometry(0.018, 0.018, 0.34, 10)),
     mats.coolEmissive,
   );
-  const domeGlass = new THREE.Mesh(
-    trackGeo(new THREE.SphereGeometry(0.46, 32, 24)),
+  emitterNeedle.rotation.x = 0.6;
+  emitterNeedle.position.set(0, 0.12, 0.09);
+  obsRadarDish.add(dishBowl, emitterNeedle);
+  ob.rotatableGroup.add(obsRadarDish);
+  registerExplode(obsRadarDish, -0.45, 0.58, 0.28);
+
+  // InstancedMesh 18 Telemetry Spectrum Columns along front desk lip
+  const specBarGeo = trackGeo(new THREE.BoxGeometry(0.06, 0.35, 0.06));
+  specBarGeo.translate(0, 0.175, 0);
+  const specCount = 18;
+  const obsSpectrumBars = new THREE.InstancedMesh(
+    specBarGeo,
+    mats.instancedOrbitalMat,
+    specCount,
+  );
+  const obsBarBaseX: number[] = [];
+  const obsBarBaseZ: number[] = [];
+  for (let i = 0; i < specCount; i += 1) {
+    const bx = -0.35 + i * 0.075;
+    const bz = 0.45;
+    obsBarBaseX.push(bx);
+    obsBarBaseZ.push(bz);
+    dummy.position.set(bx, 1.3, bz);
+    dummy.rotation.set(0, 0, 0);
+    dummy.scale.set(1, 0.5 + (i % 5) * 0.22, 1);
+    dummy.updateMatrix();
+    obsSpectrumBars.setMatrixAt(i, dummy.matrix);
+    nodeColor.setHex(i % 3 === 0 ? 0xf59e0b : 0x38bdf8);
+    obsSpectrumBars.setColorAt(i, nodeColor);
+  }
+  obsSpectrumBars.instanceMatrix.needsUpdate = true;
+  if (obsSpectrumBars.instanceColor) obsSpectrumBars.instanceColor.needsUpdate = true;
+  obsSpectrumBars.computeBoundingSphere();
+  obsSpectrumBars.frustumCulled = false;
+  ob.rotatableGroup.add(obsSpectrumBars);
+  enableShadows(ob.group);
+
+  // =========================================================================
+  // STAGE 04 — SECURITY, IDENTITY & LINUX: Cryptographic Vault & LDAP Ring
+  // =========================================================================
+  const sc = createExhibitBase('security', [-2.25, 0, -46.0], 0.34, 1.08);
+  const scBaseGeo = trackGeo(
+    new THREE.ExtrudeGeometry(createPolygonShape(8, 1.46), {
+      depth: 0.32,
+      bevelEnabled: true,
+      bevelThickness: 0.045,
+      bevelSize: 0.045,
+      bevelSegments: 3,
+    }),
+  );
+  scBaseGeo.rotateX(-Math.PI / 2);
+  const scBase = new THREE.Mesh(scBaseGeo, mats.plinthStone);
+  scBase.position.y = 0.04;
+  sc.rotatableGroup.add(scBase);
+
+  // Armored Vault Frame
+  const vaultFrameGeo = trackGeo(
+    new THREE.ExtrudeGeometry(createPolygonShape(6, 1.15), {
+      depth: 0.52,
+      bevelEnabled: true,
+      bevelThickness: 0.04,
+      bevelSize: 0.04,
+      bevelSegments: 3,
+    }),
+  );
+  vaultFrameGeo.translate(0, 0, -0.26);
+  const vaultFrame = new THREE.Mesh(vaultFrameGeo, mats.darkAnodized);
+  vaultFrame.position.set(0, 1.78, 0);
+  sc.rotatableGroup.add(vaultFrame);
+  registerExplode(vaultFrame, 0, 0.3, -0.35);
+
+  // Optical Glass Core + Golden Vault Crystal
+  const vaultCoreGroup = new THREE.Group();
+  vaultCoreGroup.position.set(0, 1.78, 0.24);
+  const vaultCore = new THREE.Mesh(
+    trackGeo(new THREE.OctahedronGeometry(0.28, 0)),
+    mats.warmEmissive,
+  );
+  const vaultCrystal = new THREE.Mesh(
+    trackGeo(new THREE.CylinderGeometry(0.54, 0.54, 0.14, 32)),
     mats.opticalGlass,
   );
-  domeGlass.renderOrder = 2;
-  orreryPivot.add(skillsCore, domeGlass);
+  vaultCrystal.rotation.x = Math.PI / 2;
+  vaultCrystal.renderOrder = 2;
+  vaultCoreGroup.add(vaultCore, vaultCrystal);
+  sc.rotatableGroup.add(vaultCoreGroup);
+  registerExplode(vaultCoreGroup, 0, 0.35, 0.28);
 
-  // 3. Three tilted concentric gimbal rings
-  const skillsRings: THREE.Object3D[] = [];
-  const ringConfigs = [
-    { radius: 0.72, tube: 0.025, tiltX: 0.45, tiltZ: 0.2, mat: mats.accentBrass },
-    { radius: 0.96, tube: 0.03, tiltX: -0.65, tiltZ: 0.5, mat: mats.brushedChassis },
-    { radius: 1.2, tube: 0.026, tiltX: 1.05, tiltZ: -0.35, mat: mats.darkAnodized },
-  ];
-
-  ringConfigs.forEach((cfg, idx) => {
-    const ring = new THREE.Mesh(
-      trackGeo(new THREE.TorusGeometry(cfg.radius, cfg.tube, 16, 72)),
-      cfg.mat,
-    );
-    ring.rotation.set(cfg.tiltX, 0, cfg.tiltZ);
-    orreryPivot.add(ring);
-    skillsRings.push(ring);
-    registerExplode(ring, 0, (idx + 1) * 0.18, 0);
-  });
-
-  // 4. InstancedMesh of 32 precision orbital calibration nodes
-  const orbitalNodeGeo = trackGeo(new THREE.SphereGeometry(0.055, 14, 14));
-  const nodeCount = 32;
-  const orbitalNodes = new THREE.InstancedMesh(
-    orbitalNodeGeo,
-    mats.instancedOrbitalMat,
-    nodeCount,
+  // Rotating Mechanical Vault Locking Wheel + 12 Instanced Radial Locking Bolts
+  const vaultWheel = new THREE.Group();
+  vaultWheel.position.set(0, 1.78, 0.42);
+  const outerWheel = new THREE.Mesh(
+    trackGeo(new THREE.TorusGeometry(0.68, 0.055, 16, 48)),
+    mats.accentBrass,
   );
-  const nodeColor = new THREE.Color();
-  for (let i = 0; i < nodeCount; i += 1) {
-    const ringBand = i % 3;
-    const r = ringBand === 0 ? 0.72 : ringBand === 1 ? 0.96 : 1.2;
-    const theta = (i / nodeCount) * Math.PI * 2 * 3;
-    const tilt = ringBand === 0 ? 0.45 : ringBand === 1 ? -0.65 : 1.05;
-    const x = Math.cos(theta) * r;
-    const y = Math.sin(theta) * r * Math.sin(tilt);
-    const z = Math.sin(theta) * r * Math.cos(tilt);
+  const innerHub = new THREE.Mesh(
+    trackGeo(new THREE.CylinderGeometry(0.22, 0.24, 0.12, 24)),
+    mats.brushedChassis,
+  );
+  innerHub.rotation.x = Math.PI / 2;
+  vaultWheel.add(outerWheel, innerHub);
 
-    dummy.position.set(x, y, z);
-    dummy.rotation.set(0, 0, 0);
-    const s = 0.85 + ((i * 7) % 5) * 0.08; // +/-15% subtle instance variation
-    dummy.scale.setScalar(s);
-    dummy.updateMatrix();
-    orbitalNodes.setMatrixAt(i, dummy.matrix);
-
-    if (ringBand === 0) nodeColor.setHex(0xf59e0b);
-    else if (ringBand === 1) nodeColor.setHex(0x38bdf8);
-    else nodeColor.setHex(0xcbd5e1);
-    orbitalNodes.setColorAt(i, nodeColor);
+  for (let s = 0; s < 4; s += 1) {
+    const spoke = new THREE.Mesh(
+      trackGeo(new THREE.CylinderGeometry(0.028, 0.028, 1.32, 10)),
+      mats.brushedChassis,
+    );
+    spoke.rotation.z = (s * Math.PI) / 4;
+    vaultWheel.add(spoke);
   }
-  orbitalNodes.instanceMatrix.needsUpdate = true;
-  if (orbitalNodes.instanceColor) orbitalNodes.instanceColor.needsUpdate = true;
-  orbitalNodes.computeBoundingSphere();
-  orreryPivot.add(orbitalNodes);
 
-  enableShadows(skillsGroup);
+  const boltGeo = trackGeo(new THREE.CylinderGeometry(0.036, 0.036, 0.18, 12));
+  const boltCount = 12;
+  const vaultBolts = new THREE.InstancedMesh(
+    boltGeo,
+    mats.accentBrass,
+    boltCount,
+  );
+  for (let i = 0; i < boltCount; i += 1) {
+    const a = (i / boltCount) * Math.PI * 2;
+    dummy.position.set(Math.cos(a) * 0.82, Math.sin(a) * 0.82, -0.06);
+    dummy.rotation.set(0, 0, a - Math.PI / 2);
+    dummy.scale.setScalar(1);
+    dummy.updateMatrix();
+    vaultBolts.setMatrixAt(i, dummy.matrix);
+  }
+  vaultBolts.instanceMatrix.needsUpdate = true;
+  vaultBolts.computeBoundingSphere();
+  vaultWheel.add(vaultBolts);
+  sc.rotatableGroup.add(vaultWheel);
+  registerExplode(vaultWheel, 0, 0.38, 0.62);
+
+  // Twin Bash/OpenLDAP Synchronization Conduits
+  [-1, 1].forEach((dir) => {
+    const syncTube = new THREE.Mesh(
+      trackGeo(
+        new THREE.TubeGeometry(
+          new THREE.CatmullRomCurve3([
+            new THREE.Vector3(dir * 0.95, 0.4, 0.2),
+            new THREE.Vector3(dir * 1.18, 1.15, 0.12),
+            new THREE.Vector3(dir * 0.88, 1.78, 0.0),
+          ]),
+          22,
+          0.036,
+          10,
+          false,
+        ),
+      ),
+      mats.brushedChassis,
+    );
+    sc.rotatableGroup.add(syncTube);
+    registerExplode(syncTube, dir * 0.4, 0.2, 0);
+  });
+  enableShadows(sc.group);
 
   // =========================================================================
-  // EXHIBIT 05 — CREDENTIALS: Architectural Arch, Caliper & Bound Folio
+  // STAGE 05 — CAREER & CREDENTIALS: Chronology Arch & Bound Folio
   // =========================================================================
-  const credGroup = new THREE.Group();
-  credGroup.position.set(4.4, 0, 5.2);
-  credGroup.rotation.y = -0.35;
-  scene.add(credGroup);
-  const credHelpers = addGroundedHelpers(credGroup, 'credentials', 1.05, [3.2, 3.6, 3.2]);
-
-  // 1. Stepped exhibition plinth
-  const credBaseGeo = trackGeo(
+  const cr = createExhibitBase('career', [1.95, 0, -57.5], -0.35, 1.08);
+  const crBaseGeo = trackGeo(
     new THREE.ExtrudeGeometry(createRoundedRectShape(2.35, 1.75, 0.14), {
       depth: 0.28,
       bevelEnabled: true,
@@ -710,65 +975,73 @@ export function buildExhibitionScene(
       bevelSegments: 2,
     }),
   );
-  credBaseGeo.rotateX(-Math.PI / 2);
-  const credBase = new THREE.Mesh(credBaseGeo, mats.plinthStone);
-  credBase.position.y = 0.035;
-  credGroup.add(credBase);
+  crBaseGeo.rotateX(-Math.PI / 2);
+  const crBase = new THREE.Mesh(crBaseGeo, mats.plinthStone);
+  crBase.position.y = 0.035;
+  cr.rotatableGroup.add(crBase);
 
-  // 2. Architectural Portal Arch (ExtrudeGeometry)
-  const archGeo = trackGeo(
-    new THREE.ExtrudeGeometry(createArchShape(1.9, 2.55, 0.24), {
-      depth: 0.26,
-      bevelEnabled: true,
-      bevelThickness: 0.025,
-      bevelSize: 0.025,
-      bevelSegments: 2,
-    }),
+  const archMesh = new THREE.Mesh(
+    trackGeo(
+      new THREE.ExtrudeGeometry(createArchShape(1.9, 2.55, 0.24), {
+        depth: 0.26,
+        bevelEnabled: true,
+        bevelThickness: 0.025,
+        bevelSize: 0.025,
+        bevelSegments: 2,
+      }),
+    ),
+    mats.brushedChassis,
   );
-  archGeo.translate(0, 0, -0.13);
-  const archMesh = new THREE.Mesh(archGeo, mats.brushedChassis);
   archMesh.position.set(0, 0.34, -0.38);
-  credGroup.add(archMesh);
+  cr.rotatableGroup.add(archMesh);
   registerExplode(archMesh, 0, 0.35, -0.38);
 
-  // 3. Suspended Precision Drafting Compass / Caliper Monument
   const compassGroup = new THREE.Group();
-  compassGroup.position.set(0, 2.38, -0.38);
+  compassGroup.position.set(0, 2.38, -0.25);
   const pivotPin = new THREE.Mesh(
     trackGeo(new THREE.CylinderGeometry(0.11, 0.11, 0.16, 24)),
     mats.accentBrass,
   );
   pivotPin.rotation.x = Math.PI / 2;
   const legGeoCompass = trackGeo(new THREE.ConeGeometry(0.055, 1.12, 12));
-  legGeoCompass.rotateX(Math.PI); // tip pointing down
+  legGeoCompass.rotateX(Math.PI);
   const compassLegL = new THREE.Mesh(legGeoCompass, mats.accentBrass);
   compassLegL.position.set(-0.24, -0.52, 0);
   compassLegL.rotation.z = -0.36;
   const compassLegR = new THREE.Mesh(legGeoCompass, mats.accentBrass);
   compassLegR.position.set(0.24, -0.52, 0);
   compassLegR.rotation.z = 0.36;
-  const crossbar = new THREE.Mesh(
-    trackGeo(new THREE.TorusGeometry(0.32, 0.018, 10, 32, Math.PI * 0.65)),
-    mats.darkAnodized,
-  );
-  crossbar.position.y = -0.55;
-  crossbar.rotation.z = Math.PI * 1.175;
-  compassGroup.add(pivotPin, compassLegL, compassLegR, crossbar);
-  credGroup.add(compassGroup);
+  compassGroup.add(pivotPin, compassLegL, compassLegR);
+  cr.rotatableGroup.add(compassGroup);
   registerExplode(compassGroup, 0, 0.68, -0.18);
 
-  // 4. Angled Lectern + Hardcover Bound Portfolio Folio
+  // Career Milestone Beacons flanking the folio
+  const careerBeacons: THREE.Object3D[] = [];
+  [-0.78, 0.78].forEach((bx) => {
+    const col = new THREE.Mesh(
+      trackGeo(new THREE.CylinderGeometry(0.09, 0.11, 0.68, 18)),
+      mats.darkAnodized,
+    );
+    col.position.set(bx, 0.66, 0.32);
+    const beacon = new THREE.Mesh(
+      trackGeo(new THREE.CylinderGeometry(0.075, 0.085, 0.18, 18)),
+      mats.warmEmissive,
+    );
+    beacon.position.set(bx, 1.12, 0.32);
+    careerBeacons.push(beacon);
+    cr.rotatableGroup.add(col, beacon);
+  });
+
   const lecternStand = new THREE.Mesh(
     trackGeo(new THREE.CylinderGeometry(0.06, 0.12, 0.62, 18)),
     mats.darkAnodized,
   );
   lecternStand.position.set(0, 0.64, 0.42);
-  credGroup.add(lecternStand);
+  cr.rotatableGroup.add(lecternStand);
 
   const folioGroup = new THREE.Group();
   folioGroup.position.set(0, 1.0, 0.45);
   folioGroup.rotation.x = -0.95;
-
   const folioBlock = new THREE.Mesh(
     trackGeo(new THREE.BoxGeometry(0.92, 1.16, 0.09)),
     mats.darkAnodized,
@@ -784,83 +1057,129 @@ export function buildExhibitionScene(
   );
   brassClasp.position.set(0.43, 0, 0);
   folioGroup.add(folioBlock, folioCover, brassClasp);
-  credGroup.add(folioGroup);
+  cr.rotatableGroup.add(folioGroup);
   registerExplode(folioGroup, 0, 0.42, 0.42);
-
-  enableShadows(credGroup);
+  enableShadows(cr.group);
 
   // =========================================================================
-  // EXHIBIT REGISTRY & CAMERA CHOREOGRAPHY PRESETS
+  // EXHIBIT REGISTRY & CURATED CAMERA WAYPOINTS
   // =========================================================================
   const exhibits: Record<ChapterId, ExhibitDefinition> = {
     overview: {
       id: 'overview',
+      indexLabel: '00',
+      title: 'Reliability Core',
+      group: ov.group,
+      rotatableGroup: ov.rotatableGroup,
+      anchorWorld: new THREE.Vector3(1.55, 3.25, 0),
+      cameraPosition: new THREE.Vector3(0.4, 2.55, 5.4),
+      cameraTarget: new THREE.Vector3(0.25, 1.55, 0),
+      proxyCollider: ov.proxyCollider,
+      ringHighlight: ov.ringHighlight,
+      pulse: 0,
+    },
+    cloud: {
+      id: 'cloud',
       indexLabel: '01',
-      title: 'Profile & Philosophy',
-      group: overviewGroup,
-      anchorWorld: new THREE.Vector3(0, 3.25, 0),
-      cameraPosition: new THREE.Vector3(2.9, 2.75, 4.9),
-      cameraTarget: new THREE.Vector3(0, 1.55, 0),
-      ...overviewHelpers,
+      title: 'Cloud & Kubernetes',
+      group: cl.group,
+      rotatableGroup: cl.rotatableGroup,
+      anchorWorld: new THREE.Vector3(2.25, 3.35, -11.5),
+      cameraPosition: new THREE.Vector3(-0.2, 2.65, -5.8),
+      cameraTarget: new THREE.Vector3(0.75, 1.55, -11.5),
+      proxyCollider: cl.proxyCollider,
+      ringHighlight: cl.ringHighlight,
+      pulse: 0,
     },
-    experience: {
-      id: 'experience',
+    cicd: {
+      id: 'cicd',
       indexLabel: '02',
-      title: 'Experience Chronology',
-      group: expGroup,
-      anchorWorld: new THREE.Vector3(-6.8, 3.95, -2.4),
-      cameraPosition: new THREE.Vector3(-3.2, 3.2, 2.1),
-      cameraTarget: new THREE.Vector3(-6.5, 1.85, -2.3),
-      ...expHelpers,
+      title: 'CI/CD & DevSecOps',
+      group: ci.group,
+      rotatableGroup: ci.rotatableGroup,
+      anchorWorld: new THREE.Vector3(-2.25, 3.15, -23.0),
+      cameraPosition: new THREE.Vector3(0.2, 2.65, -17.3),
+      cameraTarget: new THREE.Vector3(-0.75, 1.55, -23.0),
+      proxyCollider: ci.proxyCollider,
+      ringHighlight: ci.ringHighlight,
+      pulse: 0,
     },
-    projects: {
-      id: 'projects',
+    observability: {
+      id: 'observability',
       indexLabel: '03',
-      title: 'Selected Engineering',
-      group: projGroup,
-      anchorWorld: new THREE.Vector3(6.8, 3.1, -2.4),
-      cameraPosition: new THREE.Vector3(4.1, 2.55, 2.3),
-      cameraTarget: new THREE.Vector3(6.8, 1.65, -2.3),
-      ...projHelpers,
+      title: 'Observability & AI4Ops',
+      group: ob.group,
+      rotatableGroup: ob.rotatableGroup,
+      anchorWorld: new THREE.Vector3(2.25, 3.2, -34.5),
+      cameraPosition: new THREE.Vector3(-0.2, 2.75, -28.8),
+      cameraTarget: new THREE.Vector3(0.75, 1.55, -34.5),
+      proxyCollider: ob.proxyCollider,
+      ringHighlight: ob.ringHighlight,
+      pulse: 0,
     },
-    skills: {
-      id: 'skills',
+    security: {
+      id: 'security',
       indexLabel: '04',
-      title: 'Technical Stack Orrery',
-      group: skillsGroup,
-      anchorWorld: new THREE.Vector3(-4.4, 3.45, 5.2),
-      cameraPosition: new THREE.Vector3(-1.4, 2.8, 9.2),
-      cameraTarget: new THREE.Vector3(-4.4, 1.85, 5.2),
-      ...skillsHelpers,
+      title: 'Linux, IAM & Vault',
+      group: sc.group,
+      rotatableGroup: sc.rotatableGroup,
+      anchorWorld: new THREE.Vector3(-2.25, 3.3, -46.0),
+      cameraPosition: new THREE.Vector3(0.2, 2.65, -40.3),
+      cameraTarget: new THREE.Vector3(-0.75, 1.55, -46.0),
+      proxyCollider: sc.proxyCollider,
+      ringHighlight: sc.ringHighlight,
+      pulse: 0,
     },
-    credentials: {
-      id: 'credentials',
+    career: {
+      id: 'career',
       indexLabel: '05',
-      title: 'Education & Contact',
-      group: credGroup,
-      anchorWorld: new THREE.Vector3(4.4, 3.35, 5.2),
-      cameraPosition: new THREE.Vector3(2.0, 2.45, 9.3),
-      cameraTarget: new THREE.Vector3(4.4, 1.55, 5.2),
-      ...credHelpers,
+      title: 'Career & Credentials',
+      group: cr.group,
+      rotatableGroup: cr.rotatableGroup,
+      anchorWorld: new THREE.Vector3(1.95, 3.35, -57.5),
+      cameraPosition: new THREE.Vector3(-0.2, 2.65, -51.6),
+      cameraTarget: new THREE.Vector3(0.6, 1.55, -57.5),
+      proxyCollider: cr.proxyCollider,
+      ringHighlight: cr.ringHighlight,
+      pulse: 0,
     },
   };
 
+  const orderedChapters: ChapterId[] = [
+    'overview',
+    'cloud',
+    'cicd',
+    'observability',
+    'security',
+    'career',
+  ];
+
   return {
     exhibits,
-    proxyColliders: Object.values(exhibits).map((e) => e.proxyCollider),
+    orderedChapters,
+    proxyColliders: orderedChapters.map((id) => exhibits[id].proxyCollider),
     explodableParts,
     kinetic: {
       overviewOuterRing,
       overviewInnerRing,
-      overviewPrism: prismGroup,
-      skillsRings,
-      skillsCore,
-      experienceBeacons,
+      overviewPrism,
+      cloudCore,
+      cloudRings,
+      cloudPods,
+      cicdTurbine,
+      cicdScannerRing,
+      obsRadarDish,
+      obsSpectrumBars,
+      obsBarBaseX,
+      obsBarBaseZ,
+      vaultWheel,
+      vaultCore,
+      careerBeacons,
     },
     dispose() {
       geometries.forEach((g) => g.dispose());
-      Object.values(exhibits).forEach((ex) => {
-        (ex.ringHighlight.material as THREE.Material).dispose();
+      orderedChapters.forEach((id) => {
+        (exhibits[id].ringHighlight.material as THREE.Material).dispose();
       });
     },
   };

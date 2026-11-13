@@ -9,12 +9,16 @@ export interface ProceduralTextureSet {
   nameplateAlbedo: THREE.CanvasTexture;
   displayPrimaryAlbedo: THREE.CanvasTexture;
   displaySecondaryAlbedo: THREE.CanvasTexture;
+  pipelineDisplayAlbedo: THREE.CanvasTexture;
   folioCoverAlbedo: THREE.CanvasTexture;
   updateDynamicTextures: (profile: ResumeProfile) => void;
   dispose: () => void;
 }
 
-function createCanvas(width: number, height: number): [HTMLCanvasElement, CanvasRenderingContext2D] {
+function createCanvas(
+  width: number,
+  height: number,
+): [HTMLCanvasElement, CanvasRenderingContext2D] {
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
@@ -30,9 +34,9 @@ function drawBrushedRoughnessCanvas(): HTMLCanvasElement {
   ctx.fillStyle = '#808080';
   ctx.fillRect(0, 0, 512, 512);
 
-  // Fine directional anisotropic grain
   for (let y = 0; y < 512; y += 1) {
-    const tone = 112 + Math.floor(Math.sin(y * 0.43) * 18 + Math.random() * 24);
+    const tone =
+      112 + Math.floor(Math.sin(y * 0.43) * 18 + Math.random() * 24);
     ctx.fillStyle = `rgb(${tone},${tone},${tone})`;
     ctx.fillRect(0, y, 512, 1);
   }
@@ -68,50 +72,41 @@ function drawStoneBumpCanvas(): HTMLCanvasElement {
 }
 
 function drawFloorAlbedoCanvas(): HTMLCanvasElement {
-  const [canvas, ctx] = createCanvas(1024, 1024);
-  const cx = 512;
-  const cy = 512;
+  const [canvas, ctx] = createCanvas(512, 512);
 
-  // Deep architectural slate radial gradient
-  const grad = ctx.createRadialGradient(cx, cy, 40, cx, cy, 512);
-  grad.addColorStop(0, '#161b24');
-  grad.addColorStop(0.55, '#11161f');
-  grad.addColorStop(1, '#0b0e14');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, 1024, 1024);
+  // Architectural slate tile base for seamless corridor tiling
+  ctx.fillStyle = '#11161f';
+  ctx.fillRect(0, 0, 512, 512);
 
-  // Subtle architectural radial rings
+  // Subtle tile panel variation
+  ctx.fillStyle = '#141a24';
+  ctx.fillRect(4, 4, 248, 248);
+  ctx.fillRect(260, 260, 248, 248);
+
+  // Fine drafting grid seams
   ctx.strokeStyle = 'rgba(148, 163, 184, 0.14)';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(0, 0, 512, 512);
+  ctx.beginPath();
+  ctx.moveTo(256, 0);
+  ctx.lineTo(256, 512);
+  ctx.moveTo(0, 256);
+  ctx.lineTo(512, 256);
+  ctx.stroke();
+
+  // Micro calibration crosshairs at tile intersections
+  ctx.strokeStyle = 'rgba(245, 158, 11, 0.25)';
   ctx.lineWidth = 1.5;
-  [120, 220, 340, 460].forEach((radius) => {
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-    ctx.stroke();
+  [0, 256].forEach((gx) => {
+    [0, 256].forEach((gy) => {
+      ctx.beginPath();
+      ctx.moveTo(gx - 10, gy);
+      ctx.lineTo(gx + 10, gy);
+      ctx.moveTo(gx, gy - 10);
+      ctx.lineTo(gx, gy + 10);
+      ctx.stroke();
+    });
   });
-
-  // Orthogonal & 45-deg drafting crosshairs
-  ctx.strokeStyle = 'rgba(148, 163, 184, 0.08)';
-  ctx.lineWidth = 1;
-  for (let i = 0; i < 8; i += 1) {
-    const angle = (i * Math.PI) / 4;
-    ctx.beginPath();
-    ctx.moveTo(cx + Math.cos(angle) * 70, cy + Math.sin(angle) * 70);
-    ctx.lineTo(cx + Math.cos(angle) * 485, cy + Math.sin(angle) * 485);
-    ctx.stroke();
-  }
-
-  // Fine perimeter degree ticks
-  ctx.strokeStyle = 'rgba(245, 158, 11, 0.22)';
-  for (let deg = 0; deg < 360; deg += 5) {
-    const rad = (deg * Math.PI) / 180;
-    const inner = deg % 30 === 0 ? 330 : 336;
-    const outer = 344;
-    ctx.lineWidth = deg % 30 === 0 ? 2 : 1;
-    ctx.beginPath();
-    ctx.moveTo(cx + Math.cos(rad) * inner, cy + Math.sin(rad) * inner);
-    ctx.lineTo(cx + Math.cos(rad) * outer, cy + Math.sin(rad) * outer);
-    ctx.stroke();
-  }
 
   return canvas;
 }
@@ -128,14 +123,16 @@ function drawContactShadowCanvas(): HTMLCanvasElement {
   return canvas;
 }
 
-function paintNameplateCanvas(canvas: HTMLCanvasElement, profile: ResumeProfile): void {
+function paintNameplateCanvas(
+  canvas: HTMLCanvasElement,
+  profile: ResumeProfile,
+): void {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
 
   ctx.fillStyle = '#141922';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Brushed hairline border
   ctx.strokeStyle = '#d4a359';
   ctx.lineWidth = 4;
   ctx.strokeRect(14, 14, canvas.width - 28, canvas.height - 28);
@@ -146,31 +143,35 @@ function paintNameplateCanvas(canvas: HTMLCanvasElement, profile: ResumeProfile)
 
   ctx.fillStyle = '#d4a359';
   ctx.font = '500 18px "IBM Plex Mono", monospace';
-  ctx.fillText('ARCHITECTURAL DOSSIER · 01', 46, 66);
+  ctx.fillText('CORE SKILLS & PLATFORM PORTFOLIO', 46, 66);
 
   ctx.fillStyle = '#f8fafc';
-  ctx.font = '700 50px "Outfit", sans-serif';
-  const safeName = profile.name.slice(0, 26);
-  ctx.fillText(safeName, 46, 132);
+  ctx.font = '700 48px "Outfit", sans-serif';
+  ctx.fillText(profile.name.slice(0, 26), 46, 132);
 
   ctx.fillStyle = '#cbd5e1';
   ctx.font = '500 22px "Plus Jakarta Sans", sans-serif';
-  const safeHeadline = profile.headline.slice(0, 52);
-  ctx.fillText(safeHeadline, 46, 174);
+  ctx.fillText(profile.headline.slice(0, 52), 46, 174);
 
   ctx.fillStyle = '#94a3b8';
   ctx.font = '400 18px "IBM Plex Mono", monospace';
-  ctx.fillText(`${profile.location}  ·  ${profile.yearsExperience}`, 46, 218);
+  ctx.fillText(
+    `${profile.yearsExperience}  ·  99.98% SLA  ·  ${profile.location}`,
+    46,
+    218,
+  );
 }
 
-function paintPrimaryDisplayCanvas(canvas: HTMLCanvasElement, profile: ResumeProfile): void {
+function paintPrimaryDisplayCanvas(
+  canvas: HTMLCanvasElement,
+  profile: ResumeProfile,
+): void {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
 
   ctx.fillStyle = '#0c1119';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Subtle infrastructure grid
   ctx.strokeStyle = 'rgba(56, 189, 248, 0.1)';
   ctx.lineWidth = 1;
   for (let x = 0; x <= canvas.width; x += 32) {
@@ -186,14 +187,12 @@ function paintPrimaryDisplayCanvas(canvas: HTMLCanvasElement, profile: ResumePro
     ctx.stroke();
   }
 
-  // Header strip
   ctx.fillStyle = '#151e2c';
   ctx.fillRect(0, 0, canvas.width, 54);
   ctx.fillStyle = '#f59e0b';
   ctx.font = '500 18px "IBM Plex Mono", monospace';
-  ctx.fillText('PLATFORM ARCHITECTURE · K8S / CI-CD / OBSERVABILITY', 28, 34);
+  ctx.fillText('OBSERVABILITY · PROMETHEUS / GRAFANA / ELK / AI4OPS', 28, 34);
 
-  // Kubernetes & Observability Mesh Topology Diagram
   const cx = 568;
   const cy = 235;
   ctx.strokeStyle = 'rgba(56, 189, 248, 0.55)';
@@ -226,10 +225,9 @@ function paintPrimaryDisplayCanvas(canvas: HTMLCanvasElement, profile: ResumePro
   ctx.fill();
 
   ctx.fillStyle = '#0b0e14';
-  ctx.font = '700 14px "IBM Plex Mono", monospace';
-  ctx.fillText('K8S', cx - 14, cy + 5);
+  ctx.font = '700 13px "IBM Plex Mono", monospace';
+  ctx.fillText('SLA', cx - 14, cy + 5);
 
-  // Render production platform systems
   profile.projects.slice(0, 3).forEach((proj, idx) => {
     const y = 92 + idx * 98;
     ctx.fillStyle = 'rgba(30, 41, 59, 0.78)';
@@ -244,11 +242,18 @@ function paintPrimaryDisplayCanvas(canvas: HTMLCanvasElement, profile: ResumePro
 
     ctx.fillStyle = '#94a3b8';
     ctx.font = '400 14px "IBM Plex Mono", monospace';
-    ctx.fillText(`${proj.category} · ${proj.metric.slice(0, 22)}`, 44, y + 58);
+    ctx.fillText(
+      `${proj.category} · ${proj.metric.slice(0, 22)}`,
+      44,
+      y + 58,
+    );
   });
 }
 
-function paintSecondaryDisplayCanvas(canvas: HTMLCanvasElement, profile: ResumeProfile): void {
+function paintSecondaryDisplayCanvas(
+  canvas: HTMLCanvasElement,
+  profile: ResumeProfile,
+): void {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
 
@@ -257,7 +262,7 @@ function paintSecondaryDisplayCanvas(canvas: HTMLCanvasElement, profile: ResumeP
 
   ctx.fillStyle = '#38bdf8';
   ctx.font = '500 18px "IBM Plex Mono", monospace';
-  ctx.fillText('INFRASTRUCTURE & SRE STACK', 28, 46);
+  ctx.fillText('CORE SKILL MATRIX', 28, 46);
 
   ctx.strokeStyle = 'rgba(148, 163, 184, 0.2)';
   ctx.lineWidth = 1;
@@ -270,8 +275,8 @@ function paintSecondaryDisplayCanvas(canvas: HTMLCanvasElement, profile: ResumeP
   items.forEach((skill, i) => {
     const y = 104 + i * 48;
     ctx.fillStyle = '#e2e8f0';
-    ctx.font = '500 16px "Plus Jakarta Sans", sans-serif';
-    ctx.fillText(skill.slice(0, 32), 28, y);
+    ctx.font = '500 15px "Plus Jakarta Sans", sans-serif';
+    ctx.fillText(skill.slice(0, 34), 28, y);
 
     const barW = 300;
     const fillW = 225 + ((i * 19) % 68);
@@ -282,14 +287,64 @@ function paintSecondaryDisplayCanvas(canvas: HTMLCanvasElement, profile: ResumeP
   });
 }
 
-function paintFolioCoverCanvas(canvas: HTMLCanvasElement, profile: ResumeProfile): void {
+function paintPipelineDisplayCanvas(canvas: HTMLCanvasElement): void {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  ctx.fillStyle = '#0c1119';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = '#151e2c';
+  ctx.fillRect(0, 0, canvas.width, 52);
+  ctx.fillStyle = '#f59e0b';
+  ctx.font = '500 18px "IBM Plex Mono", monospace';
+  ctx.fillText('DEVSECOPS PIPELINE · GITLAB CI / KANIKO / VAULT', 28, 33);
+
+  const stages = [
+    { name: '01 TEST & LINT', detail: 'Automated Suite', color: '#38bdf8' },
+    { name: '02 KANIKO BUILD', detail: 'Rootless OCI', color: '#f59e0b' },
+    { name: '03 GITLEAKS', detail: 'Secrets Scan', color: '#34d399' },
+    { name: '04 DEFECTDOJO', detail: 'Compliance Gate', color: '#38bdf8' },
+    { name: '05 HELM DEPLOY', detail: '99.98% Rolling', color: '#f59e0b' },
+  ];
+
+  stages.forEach((st, idx) => {
+    const x = 28 + idx * 144;
+    const y = 94;
+    ctx.fillStyle = 'rgba(30, 41, 59, 0.85)';
+    ctx.fillRect(x, y, 128, 220);
+    ctx.strokeStyle = st.color;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, 128, 220);
+
+    ctx.fillStyle = st.color;
+    ctx.fillRect(x, y, 128, 8);
+
+    ctx.fillStyle = '#f8fafc';
+    ctx.font = '600 13px "IBM Plex Mono", monospace';
+    ctx.fillText(st.name, x + 10, y + 48);
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '400 12px "Plus Jakarta Sans", sans-serif';
+    ctx.fillText(st.detail, x + 10, y + 84);
+
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    ctx.fillRect(x + 12, y + 170, 104, 10);
+    ctx.fillStyle = st.color;
+    ctx.fillRect(x + 12, y + 170, 92, 10);
+  });
+}
+
+function paintFolioCoverCanvas(
+  canvas: HTMLCanvasElement,
+  profile: ResumeProfile,
+): void {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
 
   ctx.fillStyle = '#1b2230';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Embossed gold frame
   ctx.strokeStyle = '#d4a359';
   ctx.lineWidth = 5;
   ctx.strokeRect(24, 24, canvas.width - 48, canvas.height - 48);
@@ -323,7 +378,9 @@ export function createProceduralTextures(
 ): ProceduralTextureSet {
   const anisotropy = Math.min(maxAnisotropy, 8);
 
-  const brushedRoughness = new THREE.CanvasTexture(drawBrushedRoughnessCanvas());
+  const brushedRoughness = new THREE.CanvasTexture(
+    drawBrushedRoughnessCanvas(),
+  );
   brushedRoughness.wrapS = THREE.RepeatWrapping;
   brushedRoughness.wrapT = THREE.RepeatWrapping;
   brushedRoughness.repeat.set(2, 2);
@@ -337,6 +394,9 @@ export function createProceduralTextures(
 
   const floorAlbedo = new THREE.CanvasTexture(drawFloorAlbedoCanvas());
   floorAlbedo.colorSpace = THREE.SRGBColorSpace;
+  floorAlbedo.wrapS = THREE.RepeatWrapping;
+  floorAlbedo.wrapT = THREE.RepeatWrapping;
+  floorAlbedo.repeat.set(16, 40);
   floorAlbedo.anisotropy = anisotropy;
 
   const contactShadow = new THREE.CanvasTexture(drawContactShadowCanvas());
@@ -360,6 +420,12 @@ export function createProceduralTextures(
   displaySecondaryAlbedo.colorSpace = THREE.SRGBColorSpace;
   displaySecondaryAlbedo.anisotropy = anisotropy;
 
+  const [pipelineCanvas] = createCanvas(768, 384);
+  paintPipelineDisplayCanvas(pipelineCanvas);
+  const pipelineDisplayAlbedo = new THREE.CanvasTexture(pipelineCanvas);
+  pipelineDisplayAlbedo.colorSpace = THREE.SRGBColorSpace;
+  pipelineDisplayAlbedo.anisotropy = anisotropy;
+
   const [folioCanvas] = createCanvas(512, 640);
   paintFolioCoverCanvas(folioCanvas, initialProfile);
   const folioCoverAlbedo = new THREE.CanvasTexture(folioCanvas);
@@ -374,6 +440,7 @@ export function createProceduralTextures(
     nameplateAlbedo,
     displayPrimaryAlbedo,
     displaySecondaryAlbedo,
+    pipelineDisplayAlbedo,
     folioCoverAlbedo,
     updateDynamicTextures(profile: ResumeProfile) {
       paintNameplateCanvas(nameplateCanvas, profile);
@@ -396,6 +463,7 @@ export function createProceduralTextures(
       nameplateAlbedo.dispose();
       displayPrimaryAlbedo.dispose();
       displaySecondaryAlbedo.dispose();
+      pipelineDisplayAlbedo.dispose();
       folioCoverAlbedo.dispose();
     },
   };
